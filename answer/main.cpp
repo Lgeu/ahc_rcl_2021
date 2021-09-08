@@ -40,7 +40,7 @@
 
 #define rep(i,n) for(ll (i)=0; (i)<(n); (i)++)
 #define rep1(i,n) for(ll (i)=1; (i)<=(n); (i)++)
-#define rep3(i,s,n) for(ll (i)=(s); (i)<(n); (i)++)
+#define rep3(i,l,r) for(auto (i)=(l); (i)<(r); (i)++)
 
 //#define NDEBUG
 
@@ -450,32 +450,44 @@ template<class T, int max_size> struct Stack {
 
 
 // 時間 (秒)
-inline double time() {
+inline double Time() {
 	return static_cast<double>(chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now().time_since_epoch()).count()) * 1e-9;
 }
 
 
 // 重複除去
-template<typename T> inline void deduplicate(vector<T>& vec) {
+template<class VectorLike> inline void Deduplicate(VectorLike& vec) {
 	sort(vec.begin(), vec.end());
 	vec.erase(unique(vec.begin(), vec.end()), vec.end());
 }
 
 
-template<typename T> inline int search_sorted(const vector<T>& vec, const T& a) {
+// 2 分法
+template<class VectorLike, typename T> inline int SearchSorted(const VectorLike& vec, const T& a) {
 	return lower_bound(vec.begin(), vec.end(), a) - vec.begin();
 }
 
 
+// argsort
+template<typename T, int n, typename result_type> inline auto Argsort(const array<T, n>& vec) {
+	array<result_type, n> res;
+	iota(res.begin(), res.end(), 0);
+	sort(res.begin(), res.end(), [&](const result_type& l, const result_type& r) {
+		return vec[l] < vec[r];
+	});
+	return res;
+}
+
+
 // popcount  // SSE 4.2 を使うべき
-inline int popcount(const unsigned int& x) {
+inline int Popcount(const unsigned int& x) {
 #ifdef _MSC_VER
 	return (int)__popcnt(x);
 #else
 	return __builtin_popcount(x);
 #endif
 }
-inline int popcount(const unsigned long long& x) {
+inline int Popcount(const unsigned long long& x) {
 #ifdef _MSC_VER
 	return (int)__popcnt64(x);
 #else
@@ -514,11 +526,12 @@ using u16 = uint16_t;
 constexpr int N = 16;
 constexpr int M = 5000;
 constexpr int T = 1000;
-array<int, M> R;
-array<int, M> C;
-array<int, M> S;
-array<int, M> E;
-array<int, M> V;
+array<i8, M> R;
+array<i8, M> C;
+array<u8, M> RC;
+array<short, M> S;
+array<short, M> E;
+array<short, M> V;
 
 
 struct alignas(32) BitBoard {
@@ -578,11 +591,21 @@ struct alignas(32) BitBoard {
 		data = _mm256_or_si256(data, rhs.data);
 		return *this;
 	}
+	inline BitBoard& operator^=(const BitBoard& rhs) {
+		data = _mm256_xor_si256(data, rhs.data);
+		return *this;
+	}
 	inline BitBoard operator&(const BitBoard& rhs) const {
 		return BitBoard(*this) &= rhs;
 	}
 	inline BitBoard operator|(const BitBoard& rhs) const {
 		return BitBoard(*this) |= rhs;
+	}
+	inline BitBoard operator^(const BitBoard& rhs) const {
+		return BitBoard(*this) ^= rhs;
+	}
+	inline BitBoard operator~() const {
+		return BitBoard{ _mm256_xor_si256(data, _mm256_set1_epi32(-1)) };
 	}
 	inline bool Empty() const {
 		return _mm256_testz_si256(data, data);
@@ -654,31 +677,64 @@ u8 LeftOf(u8 idx) {
 namespace globals {
 auto rng = Random(42);
 auto RNT = array<unsigned, 10000>();  // random number table
-constexpr auto K = 0.01;  // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
+constexpr auto K = 0.02;  // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
 const auto EXP_NEG_K = exp(-K);
 auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();
 auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx から距離 d 以内の場所たち
+auto s_begins = array<short, T + 1>();                // t 日目の野菜の最初のインデックス
+auto order_e = array<short, M>();                     // argsort(E)
+auto e_begins = array<short, T + 1>();                // order_e のインデックスで、t 日目に消滅する野菜の最初のインデックス
+
 
 // ビームサーチ中に変動
 auto t = 0;
 auto future_value_table = Board<double, N, N>();  // 将来生える野菜の価値
 auto current_value_table = Board<double, N, N>();  // 今生えてる野菜の価値
+auto current_money_table = Board<short, N, N>();  // 今生えてる野菜の価値
+auto current_index_table = Board<short, N, N>();  // 野菜インデックス  // TODO: -1 で初期化
+
+void UpdateValueTable() {
+	// 行動直後に呼ばれる
+	
+	// 出現
+	rep3(idx_RCSEV, globals::s_begins[t], globals::s_begins[t + 1]) {
+		const auto& rc = RC[idx_RCSEV];
+		const auto& vm = v_modified[idx_RCSEV];
+		const auto& v = V[idx_RCSEV];
+		
+		ASSERT(t == S[idx_RCSEV], "wrong appearance turn");
+		ASSERT(current_index_table.data[rc] < 0, "not initialzed?");
+		ASSERT(current_money_table.data[rc] == 0, "not initialzed?");
+
+		current_value_table.data[rc] = idx_RCSEV;
+		current_money_table.data[rc] = v;
+		current_value_table.data[rc] = vm;
+		future_value_table.data[rc] -= vm;
+
+		ASSERT(future_value_table.data[rc] >= -1e3, "too many reduction");
+
+	}
+
+	// 消滅
+
+	t++;
+}
 
 }
 
-/*
+
 struct State {
 	BitBoard vegetables;
 	BitBoard machines;  // 一定ターン以降は木を保つ
-	short turn;
+	short turn;  // 何も置いてない状態が 0
 	short n_machines;
 	int money;
 	double score;
-	double score2;
-	double score3;
+	double subscore2;
+	double subscore3;
 
-	unsigned hash;  // vegetables と machines から一意に定まる
+	unsigned hash;  // machines のみによって一意に定まる
 
 	struct Action {
 		// 新しく置くときは before == after にする
@@ -689,80 +745,175 @@ struct State {
 		Action action;
 		unsigned hash;
 	};
+	void Print() {
+		cout << "State{" << endl;
+		cout << "vegetables:" << endl;
+		vegetables.Print();
+		cout << "machines:" << endl;
+		machines.Print();
+		cout << "turn=" << turn << endl;
+		cout << "n_machines=" << n_machines << endl;
+		cout << "money=" << n_machines << endl;
+		cout << "score=" << score << endl;
+		cout << "subscore2=" << subscore2 << endl;
+		cout << "subscore3=" << subscore3 << endl;
+		cout << "}" << endl;
+	}
+	inline bool Terminated() const {
+		return turn == 1000;
+	}
 	inline void Do(const Action& action) {
+		// 呼ばれる前に turn 日目の野菜が出現している
+		// money は、その日に出現する野菜も数える
+		
+
+		// 1. 収穫機を移動させる
+		//   - machine を変更する
+		//   - future_value_table に応じて subscore2 を差分計算する
+		//   - (注) 野菜があっても money を増やす必要は無い
+		// 2. その日出現する野菜に応じて vegetables のビットを立てる
+		// 3. machines と vegetables の共通部分を取って、野菜を収穫する
+		//   - 収穫した部分の vegetables のビットは折る
+		//   - money が増える
+		// 4. 野菜の出現に応じて future_value_table を減少させ、そのマスに machine があれば subscore2 を減らす
+		//   - 実際には変動があった場所のリストを作り、table は触らない
+		// 5. その日消滅する野菜に応じて vegetables のビットを折る
+		// 6. (subscore3 は一旦省略)
+
+
+		// Step 1
 		const auto& before = action.before;
 		const auto& after = action.after;
 		if (before == after) {
 			if (machines.Get(after)) {
-				// パス
-				// TODO
+				// パスする場合
+				// 何もしない
 			}
 			else {
-				// 新しく置く
+				// 新しく置く場合
 				n_machines++;
-				money -= n_machines * n_machines * n_machines;
+				money -= (int)n_machines * (int)n_machines * (int)n_machines;
 				ASSERT(money >= 0, "money < 0");
 
-				// TODO
+				machines.Flip(after);
+				hash ^= globals::RNT[after];
+				subscore2 += globals::future_value_table.data[after];
 			}
 		}
 		else {
-			// 移動させる
-
+			// 移動させる場合
+			ASSERT(machines.Get(before), "移動元に機械がないよ");
+			ASSERT(!machines.Get(after), "移動先に機械があるよ");
+			machines.Flip(before);
+			machines.Flip(after);
+			hash ^= globals::RNT[before] ^ globals::RNT[after];
+			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
 		}
 
-		score = 
+		// Step 2
+		vegetables |= globals::start_bitboards[turn];
+
+		// Step 3
+		auto intersection = machines & vegetables;
+		vegetables ^= intersection;
+		for (const auto& idx : intersection.NonzeroIndices()) {
+			ASSERT(globals::current_money_table.data[idx] >= 1, "無を収穫しようとしてるよ");
+			// 常に連結していることを仮定
+			money += n_machines * globals::current_money_table.data[idx];
+		}
+
+		// Step 4
+		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
+			const auto& idx = RC[idx_vegetables];
+			const auto& vm = globals::v_modified[idx_vegetables];
+			subscore2 -= machines.Get(idx) * vm;
+			ASSERT(subscore2 >= -1e3, "subscore2 < 0");
+		}
+
+		// Step 5
+		vegetables.data = _mm256_andnot_si256(globals::end_bitboards[turn].data, vegetables.data);
+
+
+		turn++;
+		if (turn == T) {
+			score = money;
+		}
+		else {
+			score = money
+				+ (subscore2 + subscore3) / globals::EXP_NEG_KT[turn] * n_machines
+				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2);  // 3 乗和
+		}
 
 		// TODO
 	}
 	template<class Vector>
-	inline void GetNextStates(Vector& res) {
+	inline void GetNextStates(Vector& res) const {
 
-		auto aaa = []() {
-			// 1 個足す方法を探す処理
-		};
+		// TODO: n_machines が少ないときの処理
 
-		auto put = []() {
-			// 1 個足したときのスコアとハッシュを計算する処理
-		};
+		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) < money) {
+			// 資金が足りないなら場合 (1 個取り除く)
+			if (n_machines == 1) {
+				// 機械が 1 個のとき
+				// TODO
+			}
+			else {
+				// 機械が 2 個以上のとき
+				for (const auto& p_remove : machines.NonzeroIndices()) {
+					// 葉じゃなかったら飛ばす
+					using namespace board_index_functions;
+					int neighbor_cnt = 0;  // 隣接する数
+					for (const auto& drul : { DownOf(p_remove), RightOf(p_remove), UpOf(p_remove), LeftOf(p_remove) }) {
+						if (drul != p_remove) {
+							neighbor_cnt += machines.Get(drul);
+						}
+					}
+					if (neighbor_cnt >= 2) continue;  // p は葉ではない
 
-		// 資金が足りないなら葉を 1 個取り除く
-		for (const auto& p : machines.NonzeroIndices()) {
-			// 葉じゃなかったら飛ばす
-			using namespace board_index_functions;
-			int cnt = 0;  // 隣接する数
-			for (const auto& drul : { DownOf(p), RightOf(p), UpOf(p), LeftOf(p) }) {
-				if (drul != p) {
-					cnt += machines.Get(drul);
+					// 実際に減らす
+					auto machines_removed = machines;
+					machines_removed.Flip(p_remove);
+
+					// 1 個足す方法を探す
+					// 元々の連結成分に 1 箇所で隣接 <=> xor が 1 かつ, 2 ペアの or の xor が 1
+					auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
+						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()));
+					for (const auto& p_add : cand.NonzeroIndices()) {
+						auto new_state = *this;
+						new_state.Do(Action{ p_remove, p_add });
+						res.push(NewStateInfo{ new_state.score, {p_remove, p_add}, new_state.hash });
+					}
 				}
 			}
-			if (cnt >= 2) continue;  // p は葉ではない
-
-			// 実際に減らす
-
-			// 1 個足す方法を探す
-
-			// 実際に減らしていたところを戻す
-
 		}
-		
-		// 1 個足す
+		else {
+			// 資金が足りてる場合
+			// 1 個足す方法を探す
+			auto machines_copy = machines;
+			auto&& cand = (machines_copy.Down() ^ machines_copy.Right() ^ machines_copy.Up() ^ machines_copy.Left())
+				        & ((machines_copy.Down() | machines_copy.Right()) ^ (machines_copy.Up() | machines_copy.Left()));
+			for (const auto& p_add : cand.NonzeroIndices()) {
+				auto new_state = *this;
+				new_state.Do(Action{ p_add, p_add });
+				res.push(NewStateInfo{ new_state.score, {p_add, p_add}, new_state.hash });
+			}
+		}
 
-		// 角で v が w になるやつ
+		// 角で v が w になるやつとかも考慮すべき？
 
-		// TODO
 	}
 
-
 };
-*/
 
 void Solve() {
 	// 入力を受け取る
 	{
 		int buf;
 		cin >> buf >> buf >> buf;
-		rep(i, M) cin >> R[i] >> C[i] >> S[i] >> E[i] >> V[i];
+		rep(i, M) {
+			cin >> R[i] >> C[i] >> S[i] >> E[i] >> V[i];
+			RC[i] = ((u8)R[i] * (u8)N + (u8)C[i]);
+		}
 	}
 
 	// 色々初期化
@@ -777,9 +928,41 @@ void Solve() {
 			v_modified[i] = V[i] * EXP_NEG_KT[S[i]];
 			future_value_table[{ R[i], C[i] }] += v_modified[i];
 		}
-		NEIGHBOR
+		rep(i, 256) {
+			NEIGHBOR[i][0].Flip(i);
+			rep(d, NEIGHBOR[i].size() - 1) {
+				NEIGHBOR[i][d + 1] = NEIGHBOR[i][d];
+				NEIGHBOR[i][d + 1].Expand();
+			}
+		}
+
+		// s_begins
+		auto idx = (short)0;
+		s_begins[0] = 0;
+		rep(turn, T) {
+			while (idx < S.size() && S[idx] <= turn) {
+				idx++;
+			}
+			s_begins[turn + 1] = idx;
+		}
+		// order_e
+		order_e = Argsort<short, M, short>(E);
+		// e_begins
+		idx = (short)0;
+		e_begins[0] = 0;
+		rep(turn, T) {
+			while (idx < E.size() && E[order_e[idx]] <= turn) {
+				idx++;
+			}
+			e_begins[turn + 1] = idx;
+		}
+
+
 	}
 
+	globals::future_value_table.Print();
+	//cout << "NEIGHBOR[200][7]" << endl;
+	//globals::NEIGHBOR[200][7].Print();
 
 	// ビームサーチ
 	/*
@@ -831,7 +1014,7 @@ void Solve() {
 
 int main() {
 	test::TestBitBoard();
-	//Solve();
+	Solve();
 
 }
 
