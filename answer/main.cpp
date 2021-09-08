@@ -29,11 +29,11 @@
 
 #ifdef __GNUC__
 //#pragma GCC target("avx2")
-//#pragma GCC target("sse4")
-//#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,tune=native")
-//#pragma GCC optimize("O3")
-//#pragma GCC optimize("Ofast")
+#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,avx2,tune=native")
+#pragma GCC optimize("O3")
+#pragma GCC optimize("Ofast")
 //#pragma GCC optimize("unroll-loops")
+#include<x86intrin.h>
 #endif
 
 // ========================== macroes ==========================
@@ -292,9 +292,15 @@ template<class T, int max_size> struct Stack {
 	inline Stack() : data(), right(0) {}
 	inline Stack(const int n) : data(), right(0) { resize(n); }
 	inline Stack(const int n, const T& val) : data(), right(0) { resize(n, val); }
-	inline Stack(initializer_list<T> init) :
-		data(init.begin(), init.end()), right(init.size()) {}  // これ長さが最大じゃないと動かない
+	inline Stack(const initializer_list<T>& init) : data(), right(init.size()) {
+		memcpy(&data[0], init.begin(), sizeof(T) * init.size());
+	}  // これ大丈夫か？
 	inline Stack(const Stack& rhs) : data(), right(rhs.right) {  // コピー
+		for (int i = 0; i < right; i++) {
+			data[i] = rhs.data[i];
+		}
+	}
+	template<class S> inline Stack(const Stack<S, max_size>& rhs) : data(), right(rhs.right) {
 		for (int i = 0; i < right; i++) {
 			data[i] = rhs.data[i];
 		}
@@ -331,9 +337,9 @@ template<class T, int max_size> struct Stack {
 	const inline T& top() const {
 		return data[right - 1];
 	}
-	template <class... Args> inline void emplace(const Args&... args) {
+	template <class... Args> inline void emplace(Args&&... args) {
 		ASSERT_RANGE(right, 0, max_size);
-		data[right] = T(args...);
+		new(&data[right])T(forward(args...));
 		right++;
 	}
 	inline void clear() {
@@ -432,6 +438,14 @@ template<class T, int max_size> struct Stack {
 	inline vector<T> ToVector() {
 		return vector<T>(begin(), end());
 	}
+	inline void Print() const {
+		cout << '{';
+		for (int i = 0; i < right; i++) cout << data[i] << ",}"[i == right - 1];
+		cout << endl;
+	}
+	template<class S> inline auto AsType() const {
+		return Stack<S, max_size>(*this);
+	}
 };
 
 
@@ -509,7 +523,6 @@ array<int, M> V;
 
 struct alignas(32) BitBoard {
 	__m256i data;
-
 	union U {
 		__m256i raveled;
 		array<u16, 16> rows;
@@ -538,15 +551,86 @@ struct alignas(32) BitBoard {
 	inline bool Get(const u8& idx) const {
 		return ((U*)&data)->ulls[idx >> 6] >> (idx & 63u) & 1u;
 	}
-	
-
-
+	inline void Flip(const u8& idx) {
+		((U*)&data)->ulls[idx >> 6] ^= 1ull << (idx & 63u);
+	}
+	inline BitBoard Left() const {
+		return BitBoard{ _mm256_srli_epi16(data, 1) };
+	}
+	inline BitBoard Right() const {
+		return BitBoard{ _mm256_slli_epi16(data, 1) };
+	}
+	inline BitBoard Up() const {
+		return BitBoard{ _mm256_alignr_epi8(
+			_mm256_permute2x128_si256(data, data, 0b10000001), data, 2  // _mm256_permute2x128_si256(data, data, 0b10000001) で data の上位ビットを取得
+		) };  // alignr(s1, s2, mask) := ((s1 の上位と s2 の上位) >> mask) << 16 | ((s1 の下位と s2 の下位) >> mask) シフトは 8 bit 単位
+	}
+	inline BitBoard Down() const {
+		return BitBoard{ _mm256_alignr_epi8(
+			data, _mm256_permute2x128_si256(data, data, 0b00001000), 16 - 2  // _mm256_permute2x128_si256(data, data, 0b00001000) で data の下位ビットを上位に持ってくる
+		) };
+	}
+	inline BitBoard& operator&=(const BitBoard& rhs) {
+		data = _mm256_and_si256(data, rhs.data);
+		return *this;
+	}
+	inline BitBoard& operator|=(const BitBoard& rhs) {
+		data = _mm256_or_si256(data, rhs.data);
+		return *this;
+	}
+	inline BitBoard operator&(const BitBoard& rhs) const {
+		return BitBoard(*this) &= rhs;
+	}
+	inline BitBoard operator|(const BitBoard& rhs) const {
+		return BitBoard(*this) |= rhs;
+	}
+	inline bool Empty() const {
+		return _mm256_testz_si256(data, data);
+	}
+	inline BitBoard& Expand() {  // 上下左右に広がる
+		return *this |= Down() |= Right() |= Up() |= Left();
+	}
 	void Print() const {
 		for (const auto& row : Rows()) {
-			rep(i, 16) cout << (row >> i & 1) << " \n"[i == 15];
+			rep(i, 16) cout << (row >> i & 1) << ",\n"[i == 15];
 		}
 	}
 };
+
+namespace test {
+void TestBitBoard() {
+	auto bb = BitBoard{ 0 };
+	bb.Flip(0 * 16 + 2);
+	bb.Flip(2 * 16 + 4);
+	bb.Flip(6 * 16 + 8);
+	bb.Flip(255);
+	bb.Print();
+
+	cout << "empty" << endl;
+	cout << bb.Empty() << endl;
+
+	cout << "nonzero" << endl;
+	bb.NonzeroIndices().AsType<short>().Print();
+
+	cout << "expand" << endl;
+	bb.Expand();
+	bb.Print();
+
+	cout << "left" << endl;
+	bb = bb.Left();
+	bb.Print();
+
+	cout << "up" << endl;
+	bb = bb.Up();
+	bb.Print();
+
+	cout << "reset" << endl;
+	for (const auto& idx : bb.NonzeroIndices()) bb.Flip(idx);
+	cout << "empty" << endl;
+	cout << bb.Empty() << endl;
+}
+}
+
 
 namespace board_index_functions {
 u8 UpOf(u8 idx) {
@@ -569,11 +653,12 @@ u8 LeftOf(u8 idx) {
 
 namespace globals {
 auto rng = Random(42);
-auto rnt = array<unsigned, 10000>();  // random number table
+auto RNT = array<unsigned, 10000>();  // random number table
 constexpr auto K = 0.01;  // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-auto exp_neg_Kt = array<double, 1000>();
-auto exp_neg_K = exp(-K);
+const auto EXP_NEG_K = exp(-K);
+auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();
+auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx から距離 d 以内の場所たち
 
 // ビームサーチ中に変動
 auto t = 0;
@@ -582,7 +667,7 @@ auto current_value_table = Board<double, N, N>();  // 今生えてる野菜の価値
 
 }
 
-
+/*
 struct State {
 	BitBoard vegetables;
 	BitBoard machines;  // 一定ターン以降は木を保つ
@@ -590,7 +675,10 @@ struct State {
 	short n_machines;
 	int money;
 	double score;
-	unsigned hash;
+	double score2;
+	double score3;
+
+	unsigned hash;  // vegetables と machines から一意に定まる
 
 	struct Action {
 		// 新しく置くときは before == after にする
@@ -667,7 +755,7 @@ struct State {
 
 
 };
-
+*/
 
 void Solve() {
 	// 入力を受け取る
@@ -680,20 +768,21 @@ void Solve() {
 	// 色々初期化
 	{
 		using namespace globals;
-		for (auto&& r : rnt) {
+		for (auto&& r : RNT) {
 			r = (unsigned)rng.next();
 		}
-		exp_neg_Kt[0] = 1.0;
-		rep1(i, T - 1) exp_neg_Kt[i] = exp_neg_Kt[i - 1] * exp_neg_K;
+		EXP_NEG_KT[0] = 1.0;
+		rep1(i, T - 1) EXP_NEG_KT[i] = EXP_NEG_KT[i - 1] * EXP_NEG_K;
 		rep(i, M) {
-			v_modified[i] = V[i] * exp_neg_Kt[S[i]];
+			v_modified[i] = V[i] * EXP_NEG_KT[S[i]];
 			future_value_table[{ R[i], C[i] }] += v_modified[i];
 		}
-
+		NEIGHBOR
 	}
 
 
 	// ビームサーチ
+	/*
 	{
 		struct Candidate {
 			double score;
@@ -734,15 +823,15 @@ void Solve() {
 
 	}
 
-	
+	*/
 
 
 }
 
 
-
 int main() {
-	Solve();
+	test::TestBitBoard();
+	//Solve();
 
 }
 
