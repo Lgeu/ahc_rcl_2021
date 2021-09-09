@@ -618,21 +618,17 @@ inline double MonotonicFunction(const double& start, const double& end, const do
 // パラメータ
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
 
-constexpr double K_START = 0.04535703638611019;            // OPTIMIZE [0.02, 0.10] LOG
-constexpr double K_END = 0.03571280509684636;              // OPTIMIZE [0.005, 0.04] LOG
-constexpr double K_H = 0.5883287148696084;                 // OPTIMIZE [0.001, 0.999]
-/*
-constexpr double K_START = 0.04;            // OPTIMIZEd [0.02, 0.10] LOG
-constexpr double K_END = 0.03;              // OPTIMIZEd [0.005, 0.04] LOG
-constexpr double K_H = 0.5;                 // OPTIMIZEd [0.001, 0.999]
-*/
+constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.02, 0.06] LOG
+constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.01, 0.05] LOG
+constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
+
 constexpr int hash_table_size = 19;
 constexpr int beam_width = 200;
 
-constexpr short PURCHASE_TURN_LIMIT = 830;  // OPTIMIZE [750, 900]
+constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [780, 880]
 
 // 0 で通常
-constexpr int SUBSCORE3_TIGHT_TURN = 0;
+constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
 
 using ull = unsigned long long;
 using i8 = int8_t;
