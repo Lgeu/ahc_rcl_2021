@@ -2,3 +2,5 @@
 *.zip
 .vs
 x64
+*.txt
+.ipynb_checkpoints
