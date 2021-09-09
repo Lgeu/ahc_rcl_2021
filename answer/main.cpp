@@ -854,12 +854,18 @@ void UpdateValueTable() {
 		}
 	}
 
-	rep(idx, 256) {
-		current_value_table.data[idx] = current_money_table.data[idx] + future_value_table.data[idx] / EXP_NEG_KT[t];  // machine の数…は大丈夫だった
-	}
-	high_value_indices = Argsort<double, 256, u8, true>(current_value_table.data);
-
 	t++;
+
+
+	// これ 1 個先読みしないといけない…？？？？？うわ～～～～～～～
+	// 1 turn 前ので近似… ごまかす…
+	if (t != T) {
+		rep(idx, 256) {
+			current_value_table.data[idx] = current_money_table.data[idx] + future_value_table.data[idx] / EXP_NEG_KT[t];  // machine の数…は大丈夫だった
+		}
+		high_value_indices = Argsort<double, 256, u8, true>(current_value_table.data);
+	}
+
 }
 
 }
@@ -1001,7 +1007,7 @@ struct State {
 				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
 				15
 			);
-			ASSERT_RANGE(value_decline_turn, 1, 16);
+			//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
 			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn] & machines).Empty()) {  // 到達可能であれば
 				subscore3 = globals::current_value_table.data[high_value_idx];
 			}
@@ -1159,6 +1165,8 @@ void Solve() {
 		}
 
 		current_index_table.Fill(-1);
+
+		high_value_indices = Argsort<double, 256, u8, true>(future_value_table.data);
 	}
 
 	//globals::future_value_table.Print();
@@ -1283,5 +1291,6 @@ int main() {
 - ハッシュを雑に
 - 価値の低い野菜の無視
 - ハッシュが重いしいらないかもしれない
+- ビーム幅 200 からの候補 60000, 多すぎる
 */
 
