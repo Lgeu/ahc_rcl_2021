@@ -554,11 +554,11 @@ template<class VectorLike, typename T> inline int SearchSorted(const VectorLike&
 
 
 // argsort
-template<typename T, int n, typename result_type> inline auto Argsort(const array<T, n>& vec) {
+template<typename T, int n, typename result_type, bool reverse = false> inline auto Argsort(const array<T, n>& vec) {
 	array<result_type, n> res;
 	iota(res.begin(), res.end(), 0);
 	sort(res.begin(), res.end(), [&](const result_type& l, const result_type& r) {
-		return vec[l] < vec[r];
+		return reverse ? vec[l] > vec[r] : vec[l] < vec[r];
 	});
 	return res;
 }
@@ -617,15 +617,22 @@ inline double MonotonicFunction(const double& start, const double& end, const do
 
 // パラメータ
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.04;            // OPTIMIZE [0.02, 0.10] LOG
-constexpr double K_END = 0.03;              // OPTIMIZE [0.005, 0.04] LOG
-constexpr double K_H = 0.5;                 // OPTIMIZE [0.001, 0.999]
 
+constexpr double K_START = 0.04535703638611019;            // OPTIMIZE [0.02, 0.10] LOG
+constexpr double K_END = 0.03571280509684636;              // OPTIMIZE [0.005, 0.04] LOG
+constexpr double K_H = 0.5883287148696084;                 // OPTIMIZE [0.001, 0.999]
+/*
+constexpr double K_START = 0.04;            // OPTIMIZEd [0.02, 0.10] LOG
+constexpr double K_END = 0.03;              // OPTIMIZEd [0.005, 0.04] LOG
+constexpr double K_H = 0.5;                 // OPTIMIZEd [0.001, 0.999]
+*/
 constexpr int hash_table_size = 19;
 constexpr int beam_width = 200;
 
 constexpr short PURCHASE_TURN_LIMIT = 830;  // OPTIMIZE [750, 900]
 
+// 0 で通常
+constexpr int SUBSCORE3_TIGHT_TURN = 0;
 
 using ull = unsigned long long;
 using i8 = int8_t;
@@ -795,14 +802,16 @@ auto order_e = array<short, M>();                   // argsort(E)
 auto e_begins = array<short, T + 1>();              // order_e のインデックスで、t 日目に消滅する野菜の最初のインデックス
 auto start_bitboards = array<BitBoard, T>();        // そのターンに出現する野菜の位置
 auto end_bitboards = array<BitBoard, T>();          // そのターンに消滅する野菜の位置
-
+auto next_vegetable = array<short, M>();            // 同じマスに次に現れる野菜のインデックス  // 次がなければ -1
 
 // ビームサーチ中に変動
 auto t = 0;
-auto future_value_table = Board<double, N, N>();  // 将来生える野菜の価値
-auto current_value_table = Board<double, N, N>();  // 今生えてる野菜の価値
-auto current_money_table = Board<short, N, N>();  // 今生えてる野菜の価値
-auto current_index_table = Board<short, N, N>();  // 野菜インデックス  // TODO: -1 で初期化
+auto future_value_table = Board<double, N, N>();   // 将来生える野菜の価値
+auto current_money_table = Board<short, N, N>();   // 今生えてる野菜の価値 (補正なし)
+auto current_index_table = Board<short, N, N>();   // 野菜インデックス
+auto current_value_table = Board<double, N, N>();  // 今と将来の野菜の価値 (補正無し)
+auto high_value_indices = array<u8, 256>();        // 今と将来の野菜の価値 (補正無し) をソートしたもの
+auto next_end_table = Board<short, N, N>();        // 次にそのマスの価値が落ちるタイミング  // 次がなければ -1
 
 void UpdateValueTable() {
 	// State::Do をする前に呼ぶ
@@ -819,7 +828,6 @@ void UpdateValueTable() {
 
 		current_index_table.data[rc] = idx_RCSEV;
 		current_money_table.data[rc] = v;
-		current_value_table.data[rc] = vm;
 		future_value_table.data[rc] -= vm;
 
 		ASSERT(future_value_table.data[rc] >= -1e3, "将来の価値がマイナスになることはないはずだよ");
@@ -830,18 +838,30 @@ void UpdateValueTable() {
 		const auto& idx_RCSEV = order_e[idx_order];
 
 		const auto& rc = RC[idx_RCSEV];
-		const auto& vm = v_modified[idx_RCSEV];
 		const auto& v = V[idx_RCSEV];
 
 		ASSERT(t == E[idx_RCSEV], "turn がおかしいよ");
 		ASSERT(current_index_table.data[rc] == idx_RCSEV, "消滅させる野菜がないよ");
 		ASSERT(current_money_table.data[rc] == v, "消滅させる野菜がないよ");
-		ASSERT(current_value_table.data[rc] == vm, "消滅させる野菜がないよ");
 
 		current_index_table.data[rc] = -1;
 		current_money_table.data[rc] = 0;
-		current_value_table.data[rc] = 0.0;
+
+		ASSERT(next_end_table.data[rc] == t, "終わる turn 間違ってませんか");
+		const auto& idx_next_vege = next_vegetable[idx_RCSEV];
+		if (idx_next_vege != -1) {
+			ASSERT(rc == RC[idx_next_vege], "場所間違ってませんか");
+			next_end_table.data[rc] = E[idx_next_vege];
+		}
+		else {
+			next_end_table.data[rc] = -1;
+		}
 	}
+
+	rep(idx, 256) {
+		current_value_table.data[idx] = current_money_table.data[idx] + future_value_table.data[idx] / EXP_NEG_KT[t];  // machine の数…は大丈夫だった
+	}
+	high_value_indices = Argsort<double, 256, u8, true>(current_value_table.data);
 
 	t++;
 }
@@ -898,7 +918,9 @@ struct State {
 		// 4. 野菜の出現に応じて future_value_table を減少させ、そのマスに machine があれば subscore2 を減らして money を増やす
 		//   - 実際には変動があった場所のリストを作り、table は触らない
 		// 5. その日消滅する野菜に応じて vegetables のビットを折る
-		// 6. (subscore3 は一旦省略)
+		// 6. subscore3 を計算する
+		//   - machine の無い、最も価値が高いマスについて、
+		//     その価値が下がる前にそこに到達可能であれば、点をつける
 		
 		// 参照する外部の変数:
 		// future_value_table
@@ -945,13 +967,6 @@ struct State {
 		// Step 3: 収穫(1)
 		auto intersection = machines & vegetables;
 		vegetables ^= intersection;
-		/*
-		for (const auto& idx : intersection.NonzeroIndices()) {
-			ASSERT(globals::current_money_table.data[idx] >= 1, "無を収穫しようとしてるよ");
-			// 常に連結していることを仮定
-			money += n_machines * globals::current_money_table.data[idx];
-		}
-		*/
 
 		// Step 4: 収穫(2)
 		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
@@ -959,27 +974,57 @@ struct State {
 			const auto& vm = globals::v_modified[idx_vegetables];
 			const auto& v = V[idx_vegetables];
 			
+			/*
 			subscore2 -= machines.Get(idx) * vm;
 			ASSERT(subscore2 >= -1e3, "subscore2 < 0");
 
 			money += machines.Get(idx) * n_machines * v;
+			*/
+			if (machines.Get(idx)) {
+				subscore2 -= vm;
+				ASSERT(subscore2 >= -1e3, "subscore2 < 0");
+
+				money += n_machines * v;
+			}
 		}
 
 		// Step 5: 消滅
 		vegetables.data = _mm256_andnot_si256(globals::end_bitboards[turn].data, vegetables.data);
 
 
+		// !!!!!ターン増やすよ!!!!!
 		turn++;
+		// !!!!!ターン増やすよ!!!!!
+
+
+		// Step 6: subscore3 の計算
+		subscore3 = 0.0;
+		
+		remove_reference<decltype(globals::high_value_indices[0])>::type high_value_idx;  // 価値の高い場所
+		for (int i = 0;; i++) {
+			high_value_idx = globals::high_value_indices[i];
+			if (!machines.Get(high_value_idx)) break;
+		}
+		if (globals::next_end_table.data[high_value_idx] != -1) {
+			const auto value_decline_turn = min(
+				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
+				15
+			);
+			ASSERT_RANGE(value_decline_turn, 1, 16);
+			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn] & machines).Empty()) {  // 到達可能であれば
+				subscore3 = globals::current_value_table.data[high_value_idx];
+			}
+		}
+		
+
 		if (turn == T) {
 			score = money;
 		}
 		else {
 			score = money
-				+ (subscore2 + subscore3) / globals::EXP_NEG_KT[turn] * n_machines
+				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines
 				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2);  // 3 乗和
 		}
-
-		// TODO
 	}
 	template<class Vector>
 	inline void GetNextStates(Vector& res) const {
@@ -1083,6 +1128,16 @@ void Solve() {
 			start_bitboards[S[i]].Flip(RC[i]);
 			end_bitboards[E[i]].Flip(RC[i]);
 		}
+		// next_vegetable
+		auto next_vegetable_board = Board<short, N, N>();
+		next_vegetable_board.Fill(-1);
+		next_end_table.Fill(-1);
+		for (int i = M - 1; i >= 0; i--) {
+			next_vegetable[i] = next_vegetable_board.data[RC[i]];
+			next_vegetable_board.data[RC[i]] = i;
+			next_end_table.data[RC[i]] = E[i];
+		}
+		// NEIGHBOR
 		rep(i, 256) {
 			NEIGHBOR[i][0].Flip((u8)i);
 			rep(d, (ll)NEIGHBOR[i].size() - 1) {
@@ -1232,7 +1287,9 @@ int main() {
 
 /*
 - 終盤のインフレがすごいが終盤はあまり動けない
+- 最重要: subscore3 の実装
 - ビームサーチの時間調整
 - ハッシュを雑に
+- 価値の低い野菜の無視
 */
 
