@@ -1,4 +1,4 @@
-#ifndef NAGISS_LIBRARY_HPP
+ï»¿#ifndef NAGISS_LIBRARY_HPP
 #define NAGISS_LIBRARY_HPP
 
 #ifdef _MSC_VER
@@ -47,7 +47,7 @@
 //#pragma GCC optimize("unroll-loops")
 
 #pragma clang attribute push (__attribute__((target("arch=skylake"))),apply_to=function)
-/* ÅŒã‚É«‚ğ“\‚é
+/* æœ€å¾Œã«â†“ã‚’è²¼ã‚‹
 #ifdef __GNUC__
 #pragma clang attribute pop
 #endif
@@ -98,25 +98,25 @@ template<class T, class S> inline bool chmax(T& m, const S q) {
 	else return false;
 }
 
-// ƒNƒŠƒbƒsƒ“ƒO  // clamp (C++17) ‚Æ“™‰¿
+// ã‚¯ãƒªãƒƒãƒ”ãƒ³ã‚°  // clamp (C++17) ã¨ç­‰ä¾¡
 template<class T> inline T clipped(const T& v, const T& low, const T& high) {
 	return min(max(v, low), high);
 }
 
-// 2 ŸŒ³ƒxƒNƒgƒ‹
+// 2 æ¬¡å…ƒãƒ™ã‚¯ãƒˆãƒ«
 template<typename T> struct Vec2 {
 	/*
-	y ²³‚Í‰º•ûŒü
-	x ²³‚Í‰E•ûŒü
-	‰ñ“]‚ÍŒv‰ñ‚è‚ª³iy ²³‚ğã‚Æl‚¦‚é‚Æ”½Œv‰ñ‚è‚É‚È‚éj
+	y è»¸æ­£ã¯ä¸‹æ–¹å‘
+	x è»¸æ­£ã¯å³æ–¹å‘
+	å›è»¢ã¯æ™‚è¨ˆå›ã‚ŠãŒæ­£ï¼ˆy è»¸æ­£ã‚’ä¸Šã¨è€ƒãˆã‚‹ã¨åæ™‚è¨ˆå›ã‚Šã«ãªã‚‹ï¼‰
 	*/
 	T y, x;
 	constexpr inline Vec2() = default;
 	constexpr inline Vec2(const T& arg_y, const T& arg_x) : y(arg_y), x(arg_x) {}
-	inline Vec2(const Vec2&) = default;  // ƒRƒs[
-	inline Vec2(Vec2&&) = default;  // ƒ€[ƒu
-	inline Vec2& operator=(const Vec2&) = default;  // ‘ã“ü
-	inline Vec2& operator=(Vec2&&) = default;  // ƒ€[ƒu‘ã“ü
+	inline Vec2(const Vec2&) = default;  // ã‚³ãƒ”ãƒ¼
+	inline Vec2(Vec2&&) = default;  // ãƒ ãƒ¼ãƒ–
+	inline Vec2& operator=(const Vec2&) = default;  // ä»£å…¥
+	inline Vec2& operator=(Vec2&&) = default;  // ãƒ ãƒ¼ãƒ–ä»£å…¥
 	template<typename S> constexpr inline Vec2(const Vec2<S>& v) : y((T)v.y), x((T)v.x) {}
 	inline Vec2 operator+(const Vec2& rhs) const {
 		return Vec2(y + rhs.y, x + rhs.x);
@@ -130,14 +130,14 @@ template<typename T> struct Vec2 {
 	template<typename S> inline Vec2 operator*(const S& rhs) const {
 		return Vec2(y * rhs, x * rhs);
 	}
-	inline Vec2 operator*(const Vec2& rhs) const {  // x + yj ‚Æ‚İ‚È‚·
+	inline Vec2 operator*(const Vec2& rhs) const {  // x + yj ã¨ã¿ãªã™
 		return Vec2(x * rhs.y + y * rhs.x, x * rhs.x - y * rhs.y);
 	}
 	template<typename S> inline Vec2 operator/(const S& rhs) const {
 		ASSERT(rhs != 0.0, "Zero division!");
 		return Vec2(y / rhs, x / rhs);
 	}
-	inline Vec2 operator/(const Vec2& rhs) const {  // x + yj ‚Æ‚İ‚È‚·
+	inline Vec2 operator/(const Vec2& rhs) const {  // x + yj ã¨ã¿ãªã™
 		return (*this) * rhs.inv();
 	}
 	inline Vec2& operator+=(const Vec2& rhs) {
@@ -184,7 +184,7 @@ template<typename T> struct Vec2 {
 	inline Vec2<double> rounded() const {
 		return Vec2<double>(round(y), round(x));
 	}
-	inline Vec2<double> inv() const {  // x + yj ‚Æ‚İ‚È‚·
+	inline Vec2<double> inv() const {  // x + yj ã¨ã¿ãªã™
 		const double norm_sq = l2_norm_square();
 		ASSERT(norm_sq != 0.0, "Zero division!");
 		return Vec2(-y / norm_sq, x / norm_sq);
@@ -201,10 +201,10 @@ template<typename T> struct Vec2 {
 	inline double abs() const {
 		return l2_norm();
 	}
-	inline double phase() const {  // [-PI, PI) ‚Ì‚Í‚¸
+	inline double phase() const {  // [-PI, PI) ã®ã¯ãš
 		return atan2(y, x);
 	}
-	inline double phase_deg() const {  // [-180, 180) ‚Ì‚Í‚¸
+	inline double phase_deg() const {  // [-180, 180) ã®ã¯ãš
 		return phase() / PI * 180.0;
 	}
 };
@@ -216,7 +216,7 @@ template<typename T> ostream& operator<<(ostream& os, const Vec2<T>& vec) {
 	return os;
 }
 
-// —”
+// ä¹±æ•°
 struct Random {
 	using ull = unsigned long long;
 	ull seed;
@@ -242,7 +242,7 @@ struct Random {
 	}
 };
 
-// 2 ŸŒ³”z—ñ
+// 2 æ¬¡å…ƒé…åˆ—
 template<class T, int height, int width> struct Board {
 	array<T, height * width> data;
 	template<class Int> constexpr inline auto& operator[](const Vec2<Int>& p) {
@@ -269,7 +269,7 @@ template<class T, int height, int width> struct Board {
 	}
 };
 
-// ƒLƒ…[
+// ã‚­ãƒ¥ãƒ¼
 template<class T, int max_size> struct Queue {
 	array<T, max_size> data;
 	int left, right;
@@ -303,7 +303,7 @@ template<class T, int max_size> struct Queue {
 	}
 };
 
-// ƒXƒ^ƒbƒN  // ƒRƒ“ƒXƒgƒ‰ƒNƒ^ŒÄ‚Ôƒ^ƒCƒ~ƒ“ƒO‚Æ‚©‚ªl‚¦‚ç‚ê‚Ä‚È‚­‚Ä—Ç‚­‚È‚¢
+// ã‚¹ã‚¿ãƒƒã‚¯  // ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿å‘¼ã¶ã‚¿ã‚¤ãƒŸãƒ³ã‚°ã¨ã‹ãŒè€ƒãˆã‚‰ã‚Œã¦ãªãã¦è‰¯ããªã„
 template<class T, int max_size> struct Stack {
 	array<T, max_size> data;
 	int right;
@@ -312,8 +312,8 @@ template<class T, int max_size> struct Stack {
 	inline Stack(const int n, const T& val) : data(), right(0) { resize(n, val); }
 	inline Stack(const initializer_list<T>& init) : data(), right(init.size()) {
 		memcpy(&data[0], init.begin(), sizeof(T) * init.size());
-	}  // ‚±‚ê‘åä•v‚©H
-	inline Stack(const Stack& rhs) : data(), right(rhs.right) {  // ƒRƒs[
+	}  // ã“ã‚Œå¤§ä¸ˆå¤«ã‹ï¼Ÿ
+	inline Stack(const Stack& rhs) : data(), right(rhs.right) {  // ã‚³ãƒ”ãƒ¼
 		for (int i = 0; i < right; i++) {
 			data[i] = rhs.data[i];
 		}
@@ -466,7 +466,7 @@ template<class T, int max_size> struct Stack {
 	}
 };
 
-// ƒnƒbƒVƒ…ƒe[ƒuƒ‹  // ‚¤‚Ü‚­À‘•‚Å‚«‚ñ
+// ãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«  // ã†ã¾ãå®Ÿè£…ã§ãã‚“
 template<class T, int size = 0x100000, class KeyType = unsigned long long>
 struct HashMap {
 	array<pair<KeyType, T>, size> data;
@@ -478,14 +478,14 @@ struct HashMap {
 		memset(&data[0], 0, sizeof(data));
 	}
 	const T& Get(const KeyType& key) const {
-		// Šù‚É’l‚ªŠi”[‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğ‰¼’è
+		// æ—¢ã«å€¤ãŒæ ¼ç´ã•ã‚Œã¦ã„ã‚‹ã“ã¨ã‚’ä»®å®š
 		if (key == EMPTY || key == DELETED) return Get(key + (KeyType)2);
 		auto address = key & mask;
 		while (data[address].first != key) address = (address + 1) & mask;
 		return data[address].second;
 	}
 	const T& Get(const KeyType& key, const T& default_value) const {
-		// ‚Ü‚¾’l‚ªŠi”[‚³‚ê‚Ä‚¢‚È‚¢ê‡‚Ì’l‚ğw’è
+		// ã¾ã å€¤ãŒæ ¼ç´ã•ã‚Œã¦ã„ãªã„å ´åˆã®å€¤ã‚’æŒ‡å®š
 		if (key == EMPTY || key == DELETED) return Get(key + (KeyType)2, default_value);
 		auto address = key & mask;
 		while (true) {
@@ -495,7 +495,7 @@ struct HashMap {
 		}
 	}
 	void Set(const KeyType& key, const T& value) {
-		// ‚Ü‚¾’l‚ªŠi”[‚³‚ê‚Ä‚¢‚È‚¢‚±‚Æ‚ğ‰¼’è
+		// ã¾ã å€¤ãŒæ ¼ç´ã•ã‚Œã¦ã„ãªã„ã“ã¨ã‚’ä»®å®š
 		if (key == EMPTY || key == DELETED) return Set(key + (KeyType)2, value);
 		auto address = key & mask;
 		while (data[address].first != EMPTY && data[address].first != DELETED) address = (address + 1) & mask;
@@ -503,8 +503,8 @@ struct HashMap {
 		data[address].second = value;
 	}
 	T& operator[](const KeyType& key) {
-		// ‘¶İ‚·‚ê‚Î‚»‚Ì’l‚ğ•Ô‚·
-		// ‘¶İ‚µ‚È‚¯‚ê‚ÎV‚µ‚­ì‚Á‚Ä•Ô‚·
+		// å­˜åœ¨ã™ã‚Œã°ãã®å€¤ã‚’è¿”ã™
+		// å­˜åœ¨ã—ãªã‘ã‚Œã°æ–°ã—ãä½œã£ã¦è¿”ã™
 		if (key == EMPTY || key == DELETED) return operator[](key + (KeyType)2);
 		auto address = key & mask;
 		while (data[address].first != EMPTY) {
@@ -518,36 +518,36 @@ struct HashMap {
 		return data[address].second;
 	}
 	void erase(const KeyType& key) {
-		// Šù‚É’l‚ªŠi”[‚³‚ê‚Ä‚¢‚é‚±‚Æ‚ğ‰¼’è
+		// æ—¢ã«å€¤ãŒæ ¼ç´ã•ã‚Œã¦ã„ã‚‹ã“ã¨ã‚’ä»®å®š
 		if (key == EMPTY || key == DELETED) return erase(key + (KeyType)2);
 		auto address = key & mask;
 		while (data[address].first != key) address = (address + 1) & mask;
 		data[address].first = DELETED;
-		data[address].second.~T();  // ‚±‚ê‚Ç‚¤‚·‚ê‚Î‚¢‚¢‚ñ‚¾
+		data[address].second.~T();  // ã“ã‚Œã©ã†ã™ã‚Œã°ã„ã„ã‚“ã 
 		memset(&data[address].second, 0, sizeof(T));
 	}
 	void clear() {
-		// ƒRƒXƒg‚ª‚Å‚©‚¢AƒfƒXƒgƒ‰ƒNƒ^‚Æ‚©ŒÄ‚Î‚ê‚È‚¢
+		// ã‚³ã‚¹ãƒˆãŒã§ã‹ã„ã€ãƒ‡ã‚¹ãƒˆãƒ©ã‚¯ã‚¿ã¨ã‹å‘¼ã°ã‚Œãªã„
 		memset(&data[0], 0, sizeof(data));
 	}
 
 };
 auto a = HashMap<double>();
 
-// ŠÔ (•b)
+// æ™‚é–“ (ç§’)
 inline double Time() {
 	return static_cast<double>(chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now().time_since_epoch()).count()) * 1e-9;
 }
 
 
-// d•¡œ‹
+// é‡è¤‡é™¤å»
 template<class VectorLike> inline void Deduplicate(VectorLike& vec) {
 	sort(vec.begin(), vec.end());
 	vec.erase(unique(vec.begin(), vec.end()), vec.end());
 }
 
 
-// 2 •ª–@
+// 2 åˆ†æ³•
 template<class VectorLike, typename T> inline int SearchSorted(const VectorLike& vec, const T& a) {
 	return lower_bound(vec.begin(), vec.end(), a) - vec.begin();
 }
@@ -564,7 +564,7 @@ template<typename T, int n, typename result_type> inline auto Argsort(const arra
 }
 
 
-// popcount  // SSE 4.2 ‚ğg‚¤‚×‚«
+// popcount  // SSE 4.2 ã‚’ä½¿ã†ã¹ã
 inline int Popcount(const unsigned int& x) {
 #ifdef _MSC_VER
 	return (int)__popcnt(x);
@@ -580,7 +580,7 @@ inline int Popcount(const unsigned long long& x) {
 #endif
 }
 
-// x >> n & 1 ‚ª 1 ‚É‚È‚éÅ¬‚Ì n ( x==0 ‚Í–¢’è‹` )
+// x >> n & 1 ãŒ 1 ã«ãªã‚‹æœ€å°ã® n ( x==0 ã¯æœªå®šç¾© )
 inline int CountRightZero(const unsigned int& x) {
 #ifdef _MSC_VER
 	unsigned long r;
@@ -609,14 +609,14 @@ inline double MonotonicallyIncreasingFunction(const double& h, const double& x) 
 	return expm1(log1p(a) * x) / a;
 }
 inline double MonotonicFunction(const double& start, const double& end, const double& h, const double& x) {
-	// h: x = 0.5 ‚Å‚Ìi’»—¦
+	// h: x = 0.5 ã§ã®é€²æ—ç‡
 	return MonotonicallyIncreasingFunction(h, x) * (end - start) + start;
 }
 
 #endif  // NAGISS_LIBRARY_HPP
 
-// ƒpƒ‰ƒ[ƒ^
-// K: ‘å‚«‚¢‚Ù‚Ç–¢—ˆ‚Ì‰¿’l‚ª¬‚³‚­‚È‚é log2/100 = 0.007 ‚­‚ç‚¢‚Ì‚Æ‚«–ìØ‚ÌƒCƒ“ƒtƒŒ‚Æ’Ş‚è‡‚¤H
+// ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿
+// K: å¤§ãã„ã»ã©æœªæ¥ã®ä¾¡å€¤ãŒå°ã•ããªã‚‹ log2/100 = 0.007 ãã‚‰ã„ã®ã¨ãé‡èœã®ã‚¤ãƒ³ãƒ•ãƒ¬ã¨é‡£ã‚Šåˆã†ï¼Ÿ
 constexpr double K_START = 0.04;            // OPTIMIZE [0.02, 0.10] LOG
 constexpr double K_END = 0.03;              // OPTIMIZE [0.005, 0.04] LOG
 constexpr double K_H = 0.5;                 // OPTIMIZE [0.001, 0.999]
@@ -632,7 +632,7 @@ using i8 = int8_t;
 using u8 = uint8_t;
 using u16 = uint16_t;
 
-// “ü—Í
+// å…¥åŠ›
 constexpr int N = 16;
 constexpr int M = 5000;
 constexpr int T = 1000;
@@ -685,12 +685,12 @@ struct alignas(32) BitBoard {
 	}
 	inline BitBoard Up() const {
 		return BitBoard{ _mm256_alignr_epi8(
-			_mm256_permute2x128_si256(data, data, 0b10000001), data, 2  // _mm256_permute2x128_si256(data, data, 0b10000001) ‚Å data ‚ÌãˆÊƒrƒbƒg‚ğæ“¾
-		) };  // alignr(s1, s2, mask) := ((s1 ‚ÌãˆÊ‚Æ s2 ‚ÌãˆÊ) >> mask) << 16 | ((s1 ‚Ì‰ºˆÊ‚Æ s2 ‚Ì‰ºˆÊ) >> mask) ƒVƒtƒg‚Í 8 bit ’PˆÊ
+			_mm256_permute2x128_si256(data, data, 0b10000001), data, 2  // _mm256_permute2x128_si256(data, data, 0b10000001) ã§ data ã®ä¸Šä½ãƒ“ãƒƒãƒˆã‚’å–å¾—
+		) };  // alignr(s1, s2, mask) := ((s1 ã®ä¸Šä½ã¨ s2 ã®ä¸Šä½) >> mask) << 16 | ((s1 ã®ä¸‹ä½ã¨ s2 ã®ä¸‹ä½) >> mask) ã‚·ãƒ•ãƒˆã¯ 8 bit å˜ä½
 	}
 	inline BitBoard Down() const {
 		return BitBoard{ _mm256_alignr_epi8(
-			data, _mm256_permute2x128_si256(data, data, 0b00001000), 16 - 2  // _mm256_permute2x128_si256(data, data, 0b00001000) ‚Å data ‚Ì‰ºˆÊƒrƒbƒg‚ğãˆÊ‚É‚Á‚Ä‚­‚é
+			data, _mm256_permute2x128_si256(data, data, 0b00001000), 16 - 2  // _mm256_permute2x128_si256(data, data, 0b00001000) ã§ data ã®ä¸‹ä½ãƒ“ãƒƒãƒˆã‚’ä¸Šä½ã«æŒã£ã¦ãã‚‹
 		) };
 	}
 	inline BitBoard& operator&=(const BitBoard& rhs) {
@@ -720,7 +720,7 @@ struct alignas(32) BitBoard {
 	inline bool Empty() const {
 		return _mm256_testz_si256(data, data);
 	}
-	inline BitBoard& Expand() {  // ã‰º¶‰E‚ÉL‚ª‚é
+	inline BitBoard& Expand() {  // ä¸Šä¸‹å·¦å³ã«åºƒãŒã‚‹
 		return *this |= Down() |= Right() |= Up() |= Left();
 	}
 	void Print() const {
@@ -788,44 +788,44 @@ namespace globals {
 auto rng = Random(42);                              // random number generator
 auto RNT = array<ull, 10000>();                     // random number table
 auto EXP_NEG_KT = array<double, 1000>();
-auto v_modified = array<double, M>();               // ƒ^[ƒ“‚Å•â³‚µ‚½–ìØ‚Ì‰¿’l
-auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx ‚©‚ç‹——£ d ˆÈ“à‚ÌêŠ‚½‚¿
-auto s_begins = array<short, T + 1>();              // t “ú–Ú‚Ì–ìØ‚ÌÅ‰‚ÌƒCƒ“ƒfƒbƒNƒX
+auto v_modified = array<double, M>();               // ã‚¿ãƒ¼ãƒ³ã§è£œæ­£ã—ãŸé‡èœã®ä¾¡å€¤
+auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx ã‹ã‚‰è·é›¢ d ä»¥å†…ã®å ´æ‰€ãŸã¡
+auto s_begins = array<short, T + 1>();              // t æ—¥ç›®ã®é‡èœã®æœ€åˆã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
 auto order_e = array<short, M>();                   // argsort(E)
-auto e_begins = array<short, T + 1>();              // order_e ‚ÌƒCƒ“ƒfƒbƒNƒX‚ÅAt “ú–Ú‚ÉÁ–Å‚·‚é–ìØ‚ÌÅ‰‚ÌƒCƒ“ƒfƒbƒNƒX
-auto start_bitboards = array<BitBoard, T>();        // ‚»‚Ìƒ^[ƒ“‚ÉoŒ»‚·‚é–ìØ‚ÌˆÊ’u
-auto end_bitboards = array<BitBoard, T>();          // ‚»‚Ìƒ^[ƒ“‚ÉÁ–Å‚·‚é–ìØ‚ÌˆÊ’u
+auto e_begins = array<short, T + 1>();              // order_e ã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ã§ã€t æ—¥ç›®ã«æ¶ˆæ»…ã™ã‚‹é‡èœã®æœ€åˆã®ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹
+auto start_bitboards = array<BitBoard, T>();        // ãã®ã‚¿ãƒ¼ãƒ³ã«å‡ºç¾ã™ã‚‹é‡èœã®ä½ç½®
+auto end_bitboards = array<BitBoard, T>();          // ãã®ã‚¿ãƒ¼ãƒ³ã«æ¶ˆæ»…ã™ã‚‹é‡èœã®ä½ç½®
 
 
-// ƒr[ƒ€ƒT[ƒ`’†‚É•Ï“®
+// ãƒ“ãƒ¼ãƒ ã‚µãƒ¼ãƒä¸­ã«å¤‰å‹•
 auto t = 0;
-auto future_value_table = Board<double, N, N>();  // «—ˆ¶‚¦‚é–ìØ‚Ì‰¿’l
-auto current_value_table = Board<double, N, N>();  // ¡¶‚¦‚Ä‚é–ìØ‚Ì‰¿’l
-auto current_money_table = Board<short, N, N>();  // ¡¶‚¦‚Ä‚é–ìØ‚Ì‰¿’l
-auto current_index_table = Board<short, N, N>();  // –ìØƒCƒ“ƒfƒbƒNƒX  // TODO: -1 ‚Å‰Šú‰»
+auto future_value_table = Board<double, N, N>();  // å°†æ¥ç”Ÿãˆã‚‹é‡èœã®ä¾¡å€¤
+auto current_value_table = Board<double, N, N>();  // ä»Šç”Ÿãˆã¦ã‚‹é‡èœã®ä¾¡å€¤
+auto current_money_table = Board<short, N, N>();  // ä»Šç”Ÿãˆã¦ã‚‹é‡èœã®ä¾¡å€¤
+auto current_index_table = Board<short, N, N>();  // é‡èœã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹  // TODO: -1 ã§åˆæœŸåŒ–
 
 void UpdateValueTable() {
-	// State::Do ‚ğ‚·‚é‘O‚ÉŒÄ‚Ô
+	// State::Do ã‚’ã™ã‚‹å‰ã«å‘¼ã¶
 	
-	// oŒ»
+	// å‡ºç¾
 	rep3(idx_RCSEV, globals::s_begins[t], globals::s_begins[t + 1]) {
 		const auto& rc = RC[idx_RCSEV];
 		const auto& vm = v_modified[idx_RCSEV];
 		const auto& v = V[idx_RCSEV];
 		
-		ASSERT(t == S[idx_RCSEV], "turn ‚ª‚¨‚©‚µ‚¢‚æ");
-		ASSERT(current_index_table.data[rc] < 0, "Šù‚É–ìØ‚ª‚ ‚é‚æ");
-		ASSERT(current_money_table.data[rc] == 0, "Šù‚É–ìØ‚ª‚ ‚é‚æ");
+		ASSERT(t == S[idx_RCSEV], "turn ãŒãŠã‹ã—ã„ã‚ˆ");
+		ASSERT(current_index_table.data[rc] < 0, "æ—¢ã«é‡èœãŒã‚ã‚‹ã‚ˆ");
+		ASSERT(current_money_table.data[rc] == 0, "æ—¢ã«é‡èœãŒã‚ã‚‹ã‚ˆ");
 
 		current_index_table.data[rc] = idx_RCSEV;
 		current_money_table.data[rc] = v;
 		current_value_table.data[rc] = vm;
 		future_value_table.data[rc] -= vm;
 
-		ASSERT(future_value_table.data[rc] >= -1e3, "«—ˆ‚Ì‰¿’l‚ªƒ}ƒCƒiƒX‚É‚È‚é‚±‚Æ‚Í‚È‚¢‚Í‚¸‚¾‚æ");
+		ASSERT(future_value_table.data[rc] >= -1e3, "å°†æ¥ã®ä¾¡å€¤ãŒãƒã‚¤ãƒŠã‚¹ã«ãªã‚‹ã“ã¨ã¯ãªã„ã¯ãšã ã‚ˆ");
 	}
 
-	// Á–Å
+	// æ¶ˆæ»…
 	rep3(idx_order, e_begins[t], e_begins[t + 1]) {
 		const auto& idx_RCSEV = order_e[idx_order];
 
@@ -833,10 +833,10 @@ void UpdateValueTable() {
 		const auto& vm = v_modified[idx_RCSEV];
 		const auto& v = V[idx_RCSEV];
 
-		ASSERT(t == E[idx_RCSEV], "turn ‚ª‚¨‚©‚µ‚¢‚æ");
-		ASSERT(current_index_table.data[rc] == idx_RCSEV, "Á–Å‚³‚¹‚é–ìØ‚ª‚È‚¢‚æ");
-		ASSERT(current_money_table.data[rc] == v, "Á–Å‚³‚¹‚é–ìØ‚ª‚È‚¢‚æ");
-		ASSERT(current_value_table.data[rc] == vm, "Á–Å‚³‚¹‚é–ìØ‚ª‚È‚¢‚æ");
+		ASSERT(t == E[idx_RCSEV], "turn ãŒãŠã‹ã—ã„ã‚ˆ");
+		ASSERT(current_index_table.data[rc] == idx_RCSEV, "æ¶ˆæ»…ã•ã›ã‚‹é‡èœãŒãªã„ã‚ˆ");
+		ASSERT(current_money_table.data[rc] == v, "æ¶ˆæ»…ã•ã›ã‚‹é‡èœãŒãªã„ã‚ˆ");
+		ASSERT(current_value_table.data[rc] == vm, "æ¶ˆæ»…ã•ã›ã‚‹é‡èœãŒãªã„ã‚ˆ");
 
 		current_index_table.data[rc] = -1;
 		current_money_table.data[rc] = 0;
@@ -851,18 +851,18 @@ void UpdateValueTable() {
 
 struct State {
 	BitBoard vegetables;
-	BitBoard machines;  // ˆê’èƒ^[ƒ“ˆÈ~‚Í–Ø‚ğ•Û‚Â
-	short turn;  // ‰½‚à’u‚¢‚Ä‚È‚¢ó‘Ô‚ª 0
+	BitBoard machines;  // ä¸€å®šã‚¿ãƒ¼ãƒ³ä»¥é™ã¯æœ¨ã‚’ä¿ã¤
+	short turn;  // ä½•ã‚‚ç½®ã„ã¦ãªã„çŠ¶æ…‹ãŒ 0
 	short n_machines;
 	int money;
 	double score;
 	double subscore2;
 	double subscore3;
 
-	unsigned hash;  // machines ‚Ì‚İ‚É‚æ‚Á‚ÄˆêˆÓ‚É’è‚Ü‚é
+	unsigned hash;  // machines ã®ã¿ã«ã‚ˆã£ã¦ä¸€æ„ã«å®šã¾ã‚‹
 
 	struct Action {
-		// V‚µ‚­’u‚­‚Æ‚«‚Í before == after ‚É‚·‚é
+		// æ–°ã—ãç½®ãã¨ãã¯ before == after ã«ã™ã‚‹
 		u8 before, after;
 	};
 	struct NewStateInfo {
@@ -888,24 +888,24 @@ struct State {
 		return turn == 1000;
 	}
 	inline void Do(const Action& action) {
-		// 1. ûŠn‹@‚ğˆÚ“®‚³‚¹‚é
-		//   - machine ‚ğ•ÏX‚·‚é
-		//   - future_value_table ‚É‰‚¶‚Ä subscore2 ‚ğ·•ªŒvZ‚·‚é
-		//   - –ìØ‚ª‚ ‚ê‚Î money ‚ğ‘‚â‚·
-		// 2. ‚»‚Ì“úoŒ»‚·‚é–ìØ‚É‰‚¶‚Ä vegetables ‚Ìƒrƒbƒg‚ğ—§‚Ä‚é
-		// 3. machines ‚Æ vegetables ‚Ì‹¤’Ê•”•ª‚ğæ‚Á‚ÄA–ìØ‚ğûŠn‚·‚é
-		//   - ûŠn‚µ‚½•”•ª‚Ì vegetables ‚Ìƒrƒbƒg‚ÍÜ‚é
-		// 4. –ìØ‚ÌoŒ»‚É‰‚¶‚Ä future_value_table ‚ğŒ¸­‚³‚¹A‚»‚Ìƒ}ƒX‚É machine ‚ª‚ ‚ê‚Î subscore2 ‚ğŒ¸‚ç‚µ‚Ä money ‚ğ‘‚â‚·
-		//   - ÀÛ‚É‚Í•Ï“®‚ª‚ ‚Á‚½êŠ‚ÌƒŠƒXƒg‚ğì‚èAtable ‚ÍG‚ç‚È‚¢
-		// 5. ‚»‚Ì“úÁ–Å‚·‚é–ìØ‚É‰‚¶‚Ä vegetables ‚Ìƒrƒbƒg‚ğÜ‚é
-		// 6. (subscore3 ‚Íˆê’UÈ—ª)
+		// 1. åç©«æ©Ÿã‚’ç§»å‹•ã•ã›ã‚‹
+		//   - machine ã‚’å¤‰æ›´ã™ã‚‹
+		//   - future_value_table ã«å¿œã˜ã¦ subscore2 ã‚’å·®åˆ†è¨ˆç®—ã™ã‚‹
+		//   - é‡èœãŒã‚ã‚Œã° money ã‚’å¢—ã‚„ã™
+		// 2. ãã®æ—¥å‡ºç¾ã™ã‚‹é‡èœã«å¿œã˜ã¦ vegetables ã®ãƒ“ãƒƒãƒˆã‚’ç«‹ã¦ã‚‹
+		// 3. machines ã¨ vegetables ã®å…±é€šéƒ¨åˆ†ã‚’å–ã£ã¦ã€é‡èœã‚’åç©«ã™ã‚‹
+		//   - åç©«ã—ãŸéƒ¨åˆ†ã® vegetables ã®ãƒ“ãƒƒãƒˆã¯æŠ˜ã‚‹
+		// 4. é‡èœã®å‡ºç¾ã«å¿œã˜ã¦ future_value_table ã‚’æ¸›å°‘ã•ã›ã€ãã®ãƒã‚¹ã« machine ãŒã‚ã‚Œã° subscore2 ã‚’æ¸›ã‚‰ã—ã¦ money ã‚’å¢—ã‚„ã™
+		//   - å®Ÿéš›ã«ã¯å¤‰å‹•ãŒã‚ã£ãŸå ´æ‰€ã®ãƒªã‚¹ãƒˆã‚’ä½œã‚Šã€table ã¯è§¦ã‚‰ãªã„
+		// 5. ãã®æ—¥æ¶ˆæ»…ã™ã‚‹é‡èœã«å¿œã˜ã¦ vegetables ã®ãƒ“ãƒƒãƒˆã‚’æŠ˜ã‚‹
+		// 6. (subscore3 ã¯ä¸€æ—¦çœç•¥)
 		
-		// QÆ‚·‚éŠO•”‚Ì•Ï”:
+		// å‚ç…§ã™ã‚‹å¤–éƒ¨ã®å¤‰æ•°:
 		// future_value_table
 		// current_money_table
 		// start_bitboards
 		// end_bitboards
-		// ‚Ù‚©
+		// ã»ã‹
 
 
 		// Step 1
@@ -913,11 +913,11 @@ struct State {
 		const auto& after = action.after;
 		if (before == after) {
 			if (machines.Get(after)) {
-				// ƒpƒX‚·‚éê‡
-				// ‰½‚à‚µ‚È‚¢
+				// ãƒ‘ã‚¹ã™ã‚‹å ´åˆ
+				// ä½•ã‚‚ã—ãªã„
 			}
 			else {
-				// V‚µ‚­’u‚­ê‡
+				// æ–°ã—ãç½®ãå ´åˆ
 				n_machines++;
 				money -= (int)n_machines * (int)n_machines * (int)n_machines;
 				ASSERT(money >= 0, "money < 0");
@@ -929,9 +929,9 @@ struct State {
 			}
 		}
 		else {
-			// ˆÚ“®‚³‚¹‚éê‡
-			ASSERT(machines.Get(before), "ˆÚ“®Œ³‚É‹@ŠB‚ª‚È‚¢‚æ");
-			ASSERT(!machines.Get(after), "ˆÚ“®æ‚É‹@ŠB‚ª‚ ‚é‚æ");
+			// ç§»å‹•ã•ã›ã‚‹å ´åˆ
+			ASSERT(machines.Get(before), "ç§»å‹•å…ƒã«æ©Ÿæ¢°ãŒãªã„ã‚ˆ");
+			ASSERT(!machines.Get(after), "ç§»å‹•å…ˆã«æ©Ÿæ¢°ãŒã‚ã‚‹ã‚ˆ");
 			machines.Flip(before);
 			machines.Flip(after);
 			hash ^= globals::RNT[before] ^ globals::RNT[after];
@@ -939,21 +939,21 @@ struct State {
 			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 		}
 
-		// Step 2: oŒ»
+		// Step 2: å‡ºç¾
 		vegetables |= globals::start_bitboards[turn];
 
-		// Step 3: ûŠn(1)
+		// Step 3: åç©«(1)
 		auto intersection = machines & vegetables;
 		vegetables ^= intersection;
 		/*
 		for (const auto& idx : intersection.NonzeroIndices()) {
-			ASSERT(globals::current_money_table.data[idx] >= 1, "–³‚ğûŠn‚µ‚æ‚¤‚Æ‚µ‚Ä‚é‚æ");
-			// í‚É˜AŒ‹‚µ‚Ä‚¢‚é‚±‚Æ‚ğ‰¼’è
+			ASSERT(globals::current_money_table.data[idx] >= 1, "ç„¡ã‚’åç©«ã—ã‚ˆã†ã¨ã—ã¦ã‚‹ã‚ˆ");
+			// å¸¸ã«é€£çµã—ã¦ã„ã‚‹ã“ã¨ã‚’ä»®å®š
 			money += n_machines * globals::current_money_table.data[idx];
 		}
 		*/
 
-		// Step 4: ûŠn(2)
+		// Step 4: åç©«(2)
 		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
 			const auto& idx = RC[idx_vegetables];
 			const auto& vm = globals::v_modified[idx_vegetables];
@@ -965,7 +965,7 @@ struct State {
 			money += machines.Get(idx) * n_machines * v;
 		}
 
-		// Step 5: Á–Å
+		// Step 5: æ¶ˆæ»…
 		vegetables.data = _mm256_andnot_si256(globals::end_bitboards[turn].data, vegetables.data);
 
 
@@ -976,7 +976,7 @@ struct State {
 		else {
 			score = money
 				+ (subscore2 + subscore3) / globals::EXP_NEG_KT[turn] * n_machines
-				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2);  // 3 æ˜a
+				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2);  // 3 ä¹—å’Œ
 		}
 
 		// TODO
@@ -984,12 +984,12 @@ struct State {
 	template<class Vector>
 	inline void GetNextStates(Vector& res) const {
 
-		// TODO: n_machines ‚ª­‚È‚¢‚Æ‚«‚Ìˆ—
+		// TODO: n_machines ãŒå°‘ãªã„ã¨ãã®å‡¦ç†
 
 		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money || turn >= PURCHASE_TURN_LIMIT) {
-			// ‘‹à‚ª‘«‚è‚È‚¢ê‡ (1 ŒÂæ‚èœ‚­) or ˆê’èƒ^[ƒ“ˆÈ~
+			// è³‡é‡‘ãŒè¶³ã‚Šãªã„å ´åˆ (1 å€‹å–ã‚Šé™¤ã) or ä¸€å®šã‚¿ãƒ¼ãƒ³ä»¥é™
 			if (n_machines == 1) {
-				// ‹@ŠB‚ª 1 ŒÂ‚Ì‚Æ‚«
+				// æ©Ÿæ¢°ãŒ 1 å€‹ã®ã¨ã
 				const auto p_remove = machines.NonzeroIndices()[0];
 				rep(p_add, 256) {
 					if (p_remove == p_add) continue;
@@ -999,30 +999,30 @@ struct State {
 				}
 			}
 			else {
-				// ‹@ŠB‚ª 2 ŒÂˆÈã‚Ì‚Æ‚«
+				// æ©Ÿæ¢°ãŒ 2 å€‹ä»¥ä¸Šã®ã¨ã
 				for (const auto& p_remove : machines.NonzeroIndices()) {
-					// —t‚¶‚á‚È‚©‚Á‚½‚ç”ò‚Î‚·
+					// è‘‰ã˜ã‚ƒãªã‹ã£ãŸã‚‰é£›ã°ã™
 					using namespace board_index_functions;
-					int neighbor_cnt = 0;  // —×Ú‚·‚é”
+					int neighbor_cnt = 0;  // éš£æ¥ã™ã‚‹æ•°
 					for (const auto& drul : { DownOf(p_remove), RightOf(p_remove), UpOf(p_remove), LeftOf(p_remove) }) {
 						if (drul != p_remove) {
 							neighbor_cnt += machines.Get(drul);
 						}
 					}
-					if (neighbor_cnt >= 2) continue;  // p ‚Í—t‚Å‚Í‚È‚¢
+					if (neighbor_cnt >= 2) continue;  // p ã¯è‘‰ã§ã¯ãªã„
 
-					// ÀÛ‚ÉŒ¸‚ç‚·
+					// å®Ÿéš›ã«æ¸›ã‚‰ã™
 					auto machines_removed = machines;
 					machines_removed.Flip(p_remove);
 
-					// 1 ŒÂ‘«‚·•û–@‚ğ’T‚·
-					// Œ³X‚Ì˜AŒ‹¬•ª‚É 1 ‰ÓŠ‚Å—×Ú <=> xor ‚ª 1 ‚©‚Â, 2 ƒyƒA‚Ì or ‚Ì xor ‚ª 1
+					// 1 å€‹è¶³ã™æ–¹æ³•ã‚’æ¢ã™
+					// å…ƒã€…ã®é€£çµæˆåˆ†ã« 1 ç®‡æ‰€ã§éš£æ¥ <=> xor ãŒ 1 ã‹ã¤, 2 ãƒšã‚¢ã® or ã® xor ãŒ 1
 					auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
 						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()))
 						& ~machines;
 					for (const auto& p_add : cand.NonzeroIndices()) {
 						//if (p_remove == p_add) continue;
-						ASSERT(p_remove != p_add, "Œ³‚Æ“¯‚¶‰ÓŠ‚Í‘I‚Î‚ê‚È‚¢‚Í‚¸‚¾‚æ");
+						ASSERT(p_remove != p_add, "å…ƒã¨åŒã˜ç®‡æ‰€ã¯é¸ã°ã‚Œãªã„ã¯ãšã ã‚ˆ");
 						auto new_state = *this;
 						new_state.Do(Action{ p_remove, p_add });
 						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
@@ -1031,7 +1031,7 @@ struct State {
 			}
 		}
 		else {
-			// ‘‹à‚ª‘«‚è‚Ä‚éê‡
+			// è³‡é‡‘ãŒè¶³ã‚Šã¦ã‚‹å ´åˆ
 			if (n_machines == 0) {
 				rep(p_add, 256) {
 					auto new_state = *this;
@@ -1040,7 +1040,7 @@ struct State {
 				}
 			}
 			else {
-				// 1 ŒÂ‘«‚·•û–@‚ğ’T‚·
+				// 1 å€‹è¶³ã™æ–¹æ³•ã‚’æ¢ã™
 				auto&& cand = (machines.Down() ^ machines.Right() ^ machines.Up() ^ machines.Left())
 					& ((machines.Down() | machines.Right()) ^ (machines.Up() | machines.Left()))
 					& ~machines;
@@ -1052,14 +1052,14 @@ struct State {
 			}
 		}
 
-		// Šp‚Å v ‚ª w ‚É‚È‚é‚â‚Â‚Æ‚©‚àl—¶‚·‚×‚«H
+		// è§’ã§ v ãŒ w ã«ãªã‚‹ã‚„ã¤ã¨ã‹ã‚‚è€ƒæ…®ã™ã¹ãï¼Ÿ
 
 	}
 
 };
 
 void Solve() {
-	// “ü—Í‚ğó‚¯æ‚é
+	// å…¥åŠ›ã‚’å—ã‘å–ã‚‹
 	{
 		int buf;
 		scanf("%d %d %d", &buf, &buf, &buf);
@@ -1069,7 +1069,7 @@ void Solve() {
 		}
 	}
 
-	// FX‰Šú‰»
+	// è‰²ã€…åˆæœŸåŒ–
 	{
 		using namespace globals;
 		for (auto&& r : RNT) {
@@ -1119,7 +1119,7 @@ void Solve() {
 	//cout << "NEIGHBOR[200][7]" << endl;
 	//globals::NEIGHBOR[200][7].Print();
 
-	// ƒr[ƒ€ƒT[ƒ`
+	// ãƒ“ãƒ¼ãƒ ã‚µãƒ¼ãƒ
 	
 	{
 		struct Node {
@@ -1152,11 +1152,11 @@ void Solve() {
 				for (const auto& r : next_states) {
 					auto& old_node = dict_hash_to_candidate[r.hash];
 					if (old_node == NULL) {
-						// ‚Ü‚¾‚»‚ÌƒnƒbƒVƒ…‚Ìó‘Ô‚ª–³‚¢
+						// ã¾ã ãã®ãƒãƒƒã‚·ãƒ¥ã®çŠ¶æ…‹ãŒç„¡ã„
 						q.push({ r.score, parent_node, nullptr, r.action });
 						old_node = &q.back();
 					} else if (old_node->score < r.score) {
-						// “¯‚¶ƒnƒbƒVƒ…‚ÅƒXƒRƒA‚ª‚æ‚è—Ç‚¢
+						// åŒã˜ãƒãƒƒã‚·ãƒ¥ã§ã‚¹ã‚³ã‚¢ãŒã‚ˆã‚Šè‰¯ã„
 						old_node->score = r.score;
 						old_node->parent_node = parent_node;
 						old_node->action = r.action;
@@ -1167,7 +1167,7 @@ void Solve() {
 			cerr << "q.size()=" << q.size() << endl;
 
 			if (beam_width < q.size()) {
-				nth_element(q.begin(), q.begin() + beam_width, q.end(), greater<>());  // ‚±‚±‚ÅƒnƒbƒVƒ…ƒe[ƒuƒ‹”j‰ó‚³‚ê‚Ä‚¢‚é
+				nth_element(q.begin(), q.begin() + beam_width, q.end(), greater<>());  // ã“ã“ã§ãƒãƒƒã‚·ãƒ¥ãƒ†ãƒ¼ãƒ–ãƒ«ç ´å£Šã•ã‚Œã¦ã„ã‚‹
 				q.resize(beam_width);
 			}
 
@@ -1190,16 +1190,16 @@ void Solve() {
 			globals::UpdateValueTable();
 		}
 
-		// Œ‹‰Ê‚ğo—Í
+		// çµæœã‚’å‡ºåŠ›
 		{
-			ASSERT(best_node != nullptr, "best_node ‚ª‚È‚¢‚æ");
+			ASSERT(best_node != nullptr, "best_node ãŒãªã„ã‚ˆ");
 			auto path = array<State::Action, T>();
 			auto node = best_node;
 			rep(i, T) {
 				path[T - 1 - i] = node->action;
 				node = node->parent_node;
 			}
-			ASSERT(node->parent_node == nullptr, "ªƒm[ƒh‚¶‚á‚È‚¢‚æ");
+			ASSERT(node->parent_node == nullptr, "æ ¹ãƒãƒ¼ãƒ‰ã˜ã‚ƒãªã„ã‚ˆ");
 			for (const auto& action : path) {
 				const auto& before = action.before;
 				const auto& after = action.after;
@@ -1231,8 +1231,8 @@ int main() {
 
 
 /*
-- I”Õ‚ÌƒCƒ“ƒtƒŒ‚ª‚·‚²‚¢‚ªI”Õ‚Í‚ ‚Ü‚è“®‚¯‚È‚¢
-- ƒr[ƒ€ƒT[ƒ`‚ÌŠÔ’²®
-- ƒnƒbƒVƒ…‚ğG‚É
+- çµ‚ç›¤ã®ã‚¤ãƒ³ãƒ•ãƒ¬ãŒã™ã”ã„ãŒçµ‚ç›¤ã¯ã‚ã¾ã‚Šå‹•ã‘ãªã„
+- ãƒ“ãƒ¼ãƒ ã‚µãƒ¼ãƒã®æ™‚é–“èª¿æ•´
+- ãƒãƒƒã‚·ãƒ¥ã‚’é›‘ã«
 */
 
