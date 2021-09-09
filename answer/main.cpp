@@ -947,7 +947,7 @@ struct State {
 				ASSERT(money >= 0, "money < 0");
 
 				machines.Flip(after);
-				hash ^= globals::RNT[after];
+				hash += globals::RNT[after | 1];
 				subscore2 += globals::future_value_table.data[after];
 				money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 			}
@@ -958,7 +958,7 @@ struct State {
 			ASSERT(!machines.Get(after), "移動先に機械があるよ");
 			machines.Flip(before);
 			machines.Flip(after);
-			hash ^= globals::RNT[before] ^ globals::RNT[after];
+			hash += globals::RNT[after | 1] - globals::RNT[before | 1];
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
 			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 		}
