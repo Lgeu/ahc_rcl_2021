@@ -45,6 +45,13 @@
 #pragma GCC optimize("O3")
 #pragma GCC optimize("Ofast")
 //#pragma GCC optimize("unroll-loops")
+
+#pragma clang attribute push (__attribute__((target("arch=skylake"))),apply_to=function)
+/* 最後に↓を貼る
+#ifdef __GNUC__
+#pragma clang attribute pop
+#endif
+*/
 #endif
 
 
@@ -755,7 +762,7 @@ u8 LeftOf(u8 idx) {
 namespace globals {
 auto rng = Random(42);                              // random number generator
 auto RNT = array<ull, 10000>();                     // random number table
-constexpr auto K = 0.02;                            // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
+constexpr auto K = 0.035;                            // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？  // TODO: 時間減衰
 const auto EXP_NEG_K = exp(-K);
 auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();               // ターンで補正した野菜の価値
@@ -956,8 +963,8 @@ struct State {
 
 		// TODO: n_machines が少ないときの処理
 
-		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money) {
-			// 資金が足りないなら場合 (1 個取り除く)
+		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money || turn >= 830) {
+			// 資金が足りない場合 (1 個取り除く) or 一定ターン以降
 			if (n_machines == 1) {
 				// 機械が 1 個のとき
 				const auto p_remove = machines.NonzeroIndices()[0];
@@ -1102,16 +1109,16 @@ void Solve() {
 			inline bool operator<(const Node& rhs) const { return score < rhs.score; }
 			inline bool operator>(const Node& rhs) const { return score > rhs.score; }
 		};
-		static Stack<State, (int)2e6> state_buffer;
-		static Stack<Node, (int)2e6> node_buffer;
+		constexpr auto hash_table_size = 19;
+		constexpr int beam_width = 200;
+		static Stack<State, 1 + beam_width * T> state_buffer;
+		static Stack<Node, 1 + beam_width * T> node_buffer;
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
-		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });  // TODO 初期状態
+		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
 		static Stack<Node, 200000> q;
 		Node* parent_nodes_begin = node_buffer.begin();
 		Node* parent_nodes_end = node_buffer.end();
-		constexpr auto hash_table_size = 14;
-		constexpr int beam_width = 10;
 		Node* best_node = nullptr;
 
 		rep(t, T) {
@@ -1196,4 +1203,14 @@ int main() {
 
 }
 
+#ifdef __GNUC__
+#pragma clang attribute pop
+#endif
+
+
+/*
+- 終盤のインフレがすごいが終盤はあまり動けない
+- ビームサーチの時間調整
+
+*/
 
