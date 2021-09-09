@@ -965,8 +965,9 @@ struct State {
 		vegetables |= globals::start_bitboards[turn];
 
 		// Step 3: 収穫(1)
-		auto intersection = machines & vegetables;
-		vegetables ^= intersection;
+		//auto intersection = machines & vegetables;
+		//vegetables ^= intersection;
+		vegetables.data = _mm256_andnot_si256(machines.data, vegetables.data);
 
 		// Step 4: 収穫(2)
 		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
@@ -974,12 +975,6 @@ struct State {
 			const auto& vm = globals::v_modified[idx_vegetables];
 			const auto& v = V[idx_vegetables];
 			
-			/*
-			subscore2 -= machines.Get(idx) * vm;
-			ASSERT(subscore2 >= -1e3, "subscore2 < 0");
-
-			money += machines.Get(idx) * n_machines * v;
-			*/
 			if (machines.Get(idx)) {
 				subscore2 -= vm;
 				ASSERT(subscore2 >= -1e3, "subscore2 < 0");
@@ -1291,5 +1286,6 @@ int main() {
 - ビームサーチの時間調整
 - ハッシュを雑に
 - 価値の低い野菜の無視
+- ハッシュが重いしいらないかもしれない
 */
 
