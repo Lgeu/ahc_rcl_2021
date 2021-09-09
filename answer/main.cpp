@@ -223,7 +223,7 @@ struct Random {
 	}
 };
 
-// 盤
+// 2 次元配列
 template<class T, int height, int width> struct Board {
 	array<T, height * width> data;
 	template<class Int> constexpr inline auto& operator[](const Vec2<Int>& p) {
@@ -283,7 +283,6 @@ template<class T, int max_size> struct Queue {
 		return right - left;
 	}
 };
-
 
 // スタック  // コンストラクタ呼ぶタイミングとかが考えられてなくて良くない
 template<class T, int max_size> struct Stack {
@@ -448,6 +447,73 @@ template<class T, int max_size> struct Stack {
 	}
 };
 
+// ハッシュテーブル  // うまく実装できん
+template<class T, int size = 0x100000, class KeyType = unsigned long long>
+struct HashMap {
+	array<pair<KeyType, T>, size> data;
+	constexpr static KeyType mask = size - 1;
+	constexpr static KeyType EMPTY = 0;
+	constexpr static KeyType DELETED = 1;
+	inline HashMap() {
+		static_assert((size & size - 1) == 0, "not pow of 2");
+		memset(&data[0], 0, sizeof(data));
+	}
+	const T& Get(const KeyType& key) const {
+		// 既に値が格納されていることを仮定
+		if (key == EMPTY || key == DELETED) return Get(key + (KeyType)2);
+		auto address = key & mask;
+		while (data[address].first != key) address = (address + 1) & mask;
+		return data[address].second;
+	}
+	const T& Get(const KeyType& key, const T& default_value) const {
+		// まだ値が格納されていない場合の値を指定
+		if (key == EMPTY || key == DELETED) return Get(key + (KeyType)2, default_value);
+		auto address = key & mask;
+		while (true) {
+			if (data[address].first == key) return data[address].second;
+			else if (data[address].first == EMPTY) return default_value;
+			address = (address + 1) & mask;
+		}
+	}
+	void Set(const KeyType& key, const T& value) {
+		// まだ値が格納されていないことを仮定
+		if (key == EMPTY || key == DELETED) return Set(key + (KeyType)2, value);
+		auto address = key & mask;
+		while (data[address].first != EMPTY || data[address].first != DELETED) address = (address + 1) & mask;
+		data[address].first = key;
+		data[address].second = value;
+	}
+	T& operator[](const KeyType& key) {
+		// 存在すればその値を返す
+		// 存在しなければ新しく作って返す
+		if (key == EMPTY || key == DELETED) return operator[](key + (KeyType)2);
+		auto address = key & mask;
+		while (data[address].first != EMPTY) {
+			if (data[address].first == key) return data[address].second;
+			address = (address + 1) & mask;
+		}
+		address = key & mask;
+		while (data[address].first != EMPTY || data[address].first != DELETED) address = (address + 1) & mask;
+		data[address].first = key;
+		new(&data[address].second) T();
+		return data[address].second;
+	}
+	void erase(const KeyType& key) {
+		// 既に値が格納されていることを仮定
+		if (key == EMPTY || key == DELETED) return erase(key + (KeyType)2);
+		auto address = key & mask;
+		while (data[address].first != key) address = (address + 1) & mask;
+		data[address].first = DELETED;
+		data[address].second.~T();  // これどうすればいいんだ
+		memset(&data[address].second, 0, sizeof(T));
+	}
+	void clear() {
+		// コストがでかい、デストラクタとか呼ばれない
+		memset(&data[0], 0, sizeof(data));
+	}
+
+};
+auto a = HashMap<double>();
 
 // 時間 (秒)
 inline double Time() {
@@ -675,16 +741,18 @@ u8 LeftOf(u8 idx) {
 }
 
 namespace globals {
-auto rng = Random(42);
-auto RNT = array<unsigned, 10000>();  // random number table
-constexpr auto K = 0.02;  // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
+auto rng = Random(42);                              // random number generator
+auto RNT = array<ull, 10000>();                     // random number table
+constexpr auto K = 0.02;                            // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
 const auto EXP_NEG_K = exp(-K);
 auto EXP_NEG_KT = array<double, 1000>();
-auto v_modified = array<double, M>();
+auto v_modified = array<double, M>();               // ターンで補正した野菜の価値
 auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx から距離 d 以内の場所たち
-auto s_begins = array<short, T + 1>();                // t 日目の野菜の最初のインデックス
-auto order_e = array<short, M>();                     // argsort(E)
-auto e_begins = array<short, T + 1>();                // order_e のインデックスで、t 日目に消滅する野菜の最初のインデックス
+auto s_begins = array<short, T + 1>();              // t 日目の野菜の最初のインデックス
+auto order_e = array<short, M>();                   // argsort(E)
+auto e_begins = array<short, T + 1>();              // order_e のインデックスで、t 日目に消滅する野菜の最初のインデックス
+auto start_bitboards = array<BitBoard, T>();        // そのターンに出現する野菜の位置
+auto end_bitboards = array<BitBoard, T>();          // そのターンに消滅する野菜の位置
 
 
 // ビームサーチ中に変動
@@ -703,20 +771,34 @@ void UpdateValueTable() {
 		const auto& vm = v_modified[idx_RCSEV];
 		const auto& v = V[idx_RCSEV];
 		
-		ASSERT(t == S[idx_RCSEV], "wrong appearance turn");
-		ASSERT(current_index_table.data[rc] < 0, "not initialzed?");
-		ASSERT(current_money_table.data[rc] == 0, "not initialzed?");
+		ASSERT(t == S[idx_RCSEV], "turn がおかしいよ");
+		ASSERT(current_index_table.data[rc] < 0, "既に野菜があるよ");
+		ASSERT(current_money_table.data[rc] == 0, "既に野菜があるよ");
 
-		current_value_table.data[rc] = idx_RCSEV;
+		current_index_table.data[rc] = idx_RCSEV;
 		current_money_table.data[rc] = v;
 		current_value_table.data[rc] = vm;
 		future_value_table.data[rc] -= vm;
 
-		ASSERT(future_value_table.data[rc] >= -1e3, "too many reduction");
-
+		ASSERT(future_value_table.data[rc] >= -1e3, "将来の価値がマイナスになることはないはずだよ");
 	}
 
 	// 消滅
+	rep3(idx_order, e_begins[t], e_begins[t + 1]) {
+		const auto& idx_RCSEV = order_e[idx_order];
+
+		const auto& rc = RC[idx_RCSEV];
+		const auto& vm = v_modified[idx_RCSEV];
+		const auto& v = V[idx_RCSEV];
+
+		ASSERT(t == S[idx_RCSEV], "turn がおかしいよ");
+		ASSERT(current_index_table.data[rc] == idx_RCSEV, "消滅させる野菜がないよ");
+		ASSERT(current_money_table.data[rc] == v, "消滅させる野菜がないよ");
+
+		current_index_table.data[rc] = idx_RCSEV;
+		current_money_table.data[rc] = 0;
+		current_value_table.data[rc] = 0.0;
+	}
 
 	t++;
 }
@@ -742,8 +824,8 @@ struct State {
 	};
 	struct NewStateInfo {
 		double score;
+		ull hash;
 		Action action;
-		unsigned hash;
 	};
 	void Print() {
 		cout << "State{" << endl;
@@ -763,10 +845,6 @@ struct State {
 		return turn == 1000;
 	}
 	inline void Do(const Action& action) {
-		// 呼ばれる前に turn 日目の野菜が出現している
-		// money は、その日に出現する野菜も数える
-		
-
 		// 1. 収穫機を移動させる
 		//   - machine を変更する
 		//   - future_value_table に応じて subscore2 を差分計算する
@@ -779,6 +857,13 @@ struct State {
 		//   - 実際には変動があった場所のリストを作り、table は触らない
 		// 5. その日消滅する野菜に応じて vegetables のビットを折る
 		// 6. (subscore3 は一旦省略)
+		
+		// 参照する外部の変数:
+		// future_value_table
+		// current_money_table
+		// start_bitboards
+		// end_bitboards
+		// ほか
 
 
 		// Step 1
@@ -855,7 +940,13 @@ struct State {
 			// 資金が足りないなら場合 (1 個取り除く)
 			if (n_machines == 1) {
 				// 機械が 1 個のとき
-				// TODO
+				const auto p_remove = machines.NonzeroIndices()[0];
+				rep(p_add, 256) {
+					if (p_remove == p_add) continue;
+					auto new_state = *this;
+					new_state.Do(Action{ p_remove, (u8)p_add });
+					res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, (u8)p_add} });
+				}
 			}
 			else {
 				// 機械が 2 個以上のとき
@@ -879,23 +970,33 @@ struct State {
 					auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
 						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()));
 					for (const auto& p_add : cand.NonzeroIndices()) {
+						if (p_remove == p_add) continue;
 						auto new_state = *this;
 						new_state.Do(Action{ p_remove, p_add });
-						res.push(NewStateInfo{ new_state.score, {p_remove, p_add}, new_state.hash });
+						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 				}
 			}
 		}
 		else {
 			// 資金が足りてる場合
-			// 1 個足す方法を探す
-			auto machines_copy = machines;
-			auto&& cand = (machines_copy.Down() ^ machines_copy.Right() ^ machines_copy.Up() ^ machines_copy.Left())
-				        & ((machines_copy.Down() | machines_copy.Right()) ^ (machines_copy.Up() | machines_copy.Left()));
-			for (const auto& p_add : cand.NonzeroIndices()) {
-				auto new_state = *this;
-				new_state.Do(Action{ p_add, p_add });
-				res.push(NewStateInfo{ new_state.score, {p_add, p_add}, new_state.hash });
+			if (n_machines == 0) {
+				rep(p_add, 256) {
+					auto new_state = *this;
+					new_state.Do(Action{ (u8)p_add, (u8)p_add });
+					res.push(NewStateInfo{ new_state.score, new_state.hash, {(u8)p_add, (u8)p_add} });
+				}
+			}
+			else {
+				// 1 個足す方法を探す
+				auto machines_copy = machines;
+				auto&& cand = (machines_copy.Down() ^ machines_copy.Right() ^ machines_copy.Up() ^ machines_copy.Left())
+					& ((machines_copy.Down() | machines_copy.Right()) ^ (machines_copy.Up() | machines_copy.Left()));
+				for (const auto& p_add : cand.NonzeroIndices()) {
+					auto new_state = *this;
+					new_state.Do(Action{ p_add, p_add });
+					res.push(NewStateInfo{ new_state.score, new_state.hash, {p_add, p_add} });
+				}
 			}
 		}
 
@@ -927,10 +1028,12 @@ void Solve() {
 		rep(i, M) {
 			v_modified[i] = V[i] * EXP_NEG_KT[S[i]];
 			future_value_table[{ R[i], C[i] }] += v_modified[i];
+			start_bitboards[S[i]].Flip(RC[i]);
+			end_bitboards[E[i]].Flip(RC[i]);
 		}
 		rep(i, 256) {
-			NEIGHBOR[i][0].Flip(i);
-			rep(d, NEIGHBOR[i].size() - 1) {
+			NEIGHBOR[i][0].Flip((u8)i);
+			rep(d, (ll)NEIGHBOR[i].size() - 1) {
 				NEIGHBOR[i][d + 1] = NEIGHBOR[i][d];
 				NEIGHBOR[i][d + 1].Expand();
 			}
@@ -957,63 +1060,113 @@ void Solve() {
 			e_begins[turn + 1] = idx;
 		}
 
-
+		current_index_table.Fill(-1);
 	}
 
-	globals::future_value_table.Print();
+	//globals::future_value_table.Print();
 	//cout << "NEIGHBOR[200][7]" << endl;
 	//globals::NEIGHBOR[200][7].Print();
 
 	// ビームサーチ
-	/*
+	
 	{
-		struct Candidate {
+		struct Node {
 			double score;
-			State* ptr_parent_state;
+			Node* parent_node;
+			State* state;
 			typename State::Action action;
-			inline Candidate() : score(0.0), ptr_parent_state(nullptr), action() {}
-			inline Candidate(const double& a_score, State* const a_ptr_parent_state, const typename State::Action a_action) :
-				score(a_score), ptr_parent_state(a_ptr_parent_state), action(a_action) {}
-			inline bool operator<(const Candidate& rhs) const { return score < rhs.score; }
-			inline bool operator>(const Candidate& rhs) const { return score > rhs.score; }
-		};
-		static Stack<State, (int)1e7> state_buffer;
-		state_buffer.push();  // TODO 初期状態
-		static Stack<Candidate, 200000> candidates;
-		static Stack<typename State::NewStateInfo, 10000> next_state_buffer;
-		State* parent_states_begin = state_buffer.begin();
-		State* parent_states_end = state_buffer.end();
-		static bitset<1 << hash_table_size> candidates_contains;  // 2^26 bits == 8 MB
-		
 
-		constexpr int beam_width = 1000;
+			inline bool operator<(const Node& rhs) const { return score < rhs.score; }
+			inline bool operator>(const Node& rhs) const { return score > rhs.score; }
+		};
+		static Stack<State, (int)2e6> state_buffer;
+		static Stack<Node, (int)2e6> node_buffer;
+		state_buffer.emplace();
+		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });  // TODO 初期状態
+		static Stack<Node, 200000> q;
+		Node* parent_nodes_begin = node_buffer.begin();
+		Node* parent_nodes_end = node_buffer.end();
+		constexpr auto hash_table_size = 14;
+		constexpr int beam_width = 10;
+		Node* best_node = nullptr;
+
 		rep(t, T) {
-			for(auto parent_state = parent_states_begin; parent_state != parent_states_end; parent_state++){
-				parent_state->GetNextStates(next_state_buffer);
-				for(const auto& r : next_state_buffer){
-					if (!candidates_contains[r.hash & (1u << hash_table_size) - 1u]) {
+			static HashMap<Node*, 1 << hash_table_size> dict_hash_to_candidate;
+			dict_hash_to_candidate.clear();
+
+			for (auto parent_node = parent_nodes_begin; parent_node != parent_nodes_end; parent_node++) {
+				static Stack<typename State::NewStateInfo, 10000> next_states;
+				next_states.clear();
+				parent_node->state->GetNextStates(next_states);
+				for (const auto& r : next_states) {
+					auto& old_node = dict_hash_to_candidate[r.hash];
+					if (old_node == NULL) {
 						// まだそのハッシュの状態が無い
-						candidates.emplace(r.score, &parent_state, r.action);
-						candidates_contains[r.hash & (1u << hash_table_size) - 1u] = true;
+						q.push({ r.score, parent_node, nullptr, r.action });
+						old_node = &q.back();
+					} else if (old_node->score < r.score) {
+						// 同じハッシュでスコアがより良い
+						old_node->score = r.score;
+						old_node->parent_node = parent_node;
+						old_node->action = r.action;
 					}
 				}
-				next_state_buffer.clear();
-			}
-			if (beam_width < candidates.size()) {
 
 			}
+			cerr << "q.size()=" << q.size() << endl;
+
+			if (beam_width < q.size()) {
+				nth_element(q.begin(), q.begin() + beam_width, q.end(), greater<>());  // ここでハッシュテーブル破壊されている
+				q.resize(beam_width);
+			}
+
+			for (auto&& node : q) {
+				auto state = *node.parent_node->state;
+				state.Do(node.action);
+				state_buffer.push(state);
+				node.state = &state_buffer.back();
+				node_buffer.push(node);
+				if (state.Terminated()) {
+					if (best_node == nullptr || best_node->score < state.score) {
+						best_node = &node_buffer.back();
+					}
+				}
+			}
+			q.clear();
+			parent_nodes_begin = parent_nodes_end;
+			parent_nodes_end = node_buffer.end();
+
+			globals::UpdateValueTable();
 		}
 
+		// 結果を出力
+		ASSERT(best_node != nullptr, "best_node がないよ");
+		auto path = array<State::Action, T>();
+		auto node = best_node;
+		rep(i, T) {
+			path[T - 1 - i] = node->action;
+			node = node->parent_node;
+		}
+		ASSERT(node == nullptr, "根ノードじゃないよ");
+		for (const auto& action : path) {
+			const auto& before = action.before;
+			const auto& after = action.after;
+			if (before == after) {
+				cout << (short)(after >> 4) << " " << (short)(after & 15u) << endl;
+			}
+			else {
+				cout << (short)(before >> 4) << " " << (short)(before & 15u) << " "
+					 << (short)(after >> 4) << " " << (short)(after & 15u) << endl;
+			}
+		}
 	}
 
-	*/
-
-
+	
 }
 
 
 int main() {
-	test::TestBitBoard();
+	//test::TestBitBoard();
 	Solve();
 
 }
