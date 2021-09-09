@@ -788,7 +788,7 @@ u8 LeftOf(u8 idx) {
 }
 
 namespace globals {
-auto rng = Random(42);                              // random number generator
+auto rng = Random(123456789);                              // random number generator
 auto RNT = array<ull, 10000>();                     // random number table
 auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();               // ターンで補正した野菜の価値
@@ -947,7 +947,7 @@ struct State {
 				ASSERT(money >= 0, "money < 0");
 
 				machines.Flip(after);
-				hash += globals::RNT[after | 1];
+				hash += globals::RNT[after | 0b00010001];
 				subscore2 += globals::future_value_table.data[after];
 				money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 			}
@@ -958,7 +958,7 @@ struct State {
 			ASSERT(!machines.Get(after), "移動先に機械があるよ");
 			machines.Flip(before);
 			machines.Flip(after);
-			hash += globals::RNT[after | 1] - globals::RNT[before | 1];
+			hash += globals::RNT[after | 0b00010001] - globals::RNT[before | 0b00010001];
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
 			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 		}
@@ -1067,6 +1067,8 @@ struct State {
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");
 						auto new_state = *this;
 						new_state.Do(Action{ p_remove, p_add });
+						//if (turn >= 50 && turn < T - 1
+						//	&& new_state.score - new_state.subscore3 * new_state.n_machines < (score - subscore3 * n_machines) * 0.8) continue;  // 枝刈り  // 悪化
 						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 				}
@@ -1204,6 +1206,7 @@ void Solve() {
 				next_states.clear();
 				parent_node->state->GetNextStates(next_states);
 				for (const auto& r : next_states) {
+					//if (t >= 50 && t < T - 1 && r.score < parent_node->score * 0.9) continue;  // 枝刈り  // 悪化
 					auto& old_node = dict_hash_to_candidate[r.hash];
 					if (old_node == NULL) {
 						// まだそのハッシュの状態が無い
@@ -1288,9 +1291,11 @@ int main() {
 - 終盤のインフレがすごいが終盤はあまり動けない
 - ビームサーチの時間調整
 - 最重要: ハッシュを雑に
+  - 微妙か？評価関数改善して誘導したほうが強そう
 - 価値の低い野菜の無視
 - ハッシュが重いしいらないかもしれない
 - ビーム幅 200 からの候補 60000, 多すぎる
 - subscore3 の改善
+- 前 turn より減ってたら採用しない感じの枝刈り
 */
 
