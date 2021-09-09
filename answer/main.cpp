@@ -600,7 +600,32 @@ inline int CountRightZero(const unsigned long long& x) {
 #endif
 }
 
+inline double MonotonicallyIncreasingFunction(const double& h, const double& x) {
+	// 0 < h < 1
+	// f(0) = 0, f(1) = 1, f(0.5) = h
+	ASSERT(h > 0.0 && h < 1.0, "0 < h < 1 not satisfied");
+	if (h == 0.5) return x;
+	const double& a = (1.0 - 2.0 * h) / (h * h);
+	return expm1(log1p(a) * x) / a;
+}
+inline double MonotonicFunction(const double& start, const double& end, const double& h, const double& x) {
+	// h: x = 0.5 での進捗率
+	return MonotonicallyIncreasingFunction(h, x) * (end - start) + start;
+}
+
 #endif  // NAGISS_LIBRARY_HPP
+
+// パラメータ
+// K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
+constexpr double K_START = 0.04;            // OPTIMIZE [0.02, 0.10] LOG
+constexpr double K_END = 0.03;              // OPTIMIZE [0.005, 0.04] LOG
+constexpr double K_H = 0.5;                 // OPTIMIZE [0.001, 0.999]
+
+constexpr int hash_table_size = 19;
+constexpr int beam_width = 200;
+
+constexpr short PURCHASE_TURN_LIMIT = 830;  // OPTIMIZE [750, 900]
+
 
 using ull = unsigned long long;
 using i8 = int8_t;
@@ -762,8 +787,6 @@ u8 LeftOf(u8 idx) {
 namespace globals {
 auto rng = Random(42);                              // random number generator
 auto RNT = array<ull, 10000>();                     // random number table
-constexpr auto K = 0.035;                            // 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？  // TODO: 時間減衰
-const auto EXP_NEG_K = exp(-K);
 auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();               // ターンで補正した野菜の価値
 auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx から距離 d 以内の場所たち
@@ -963,7 +986,7 @@ struct State {
 
 		// TODO: n_machines が少ないときの処理
 
-		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money || turn >= 830) {
+		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money || turn >= PURCHASE_TURN_LIMIT) {
 			// 資金が足りない場合 (1 個取り除く) or 一定ターン以降
 			if (n_machines == 1) {
 				// 機械が 1 個のとき
@@ -1042,7 +1065,6 @@ void Solve() {
 		scanf("%d %d %d", &buf, &buf, &buf);
 		rep(i, M) {
 			scanf("%hhd %hhd %hd %hd %hd", &R[i], &C[i], &S[i], &E[i], &V[i]);
-			//cin >> R[i] >> C[i] >> S[i] >> E[i] >> V[i];
 			RC[i] = ((u8)R[i] * (u8)N + (u8)C[i]);
 		}
 	}
@@ -1054,7 +1076,7 @@ void Solve() {
 			r = (unsigned)rng.next();
 		}
 		EXP_NEG_KT[0] = 1.0;
-		rep1(i, T - 1) EXP_NEG_KT[i] = EXP_NEG_KT[i - 1] * EXP_NEG_K;
+		rep1(i, T - 1) EXP_NEG_KT[i] = EXP_NEG_KT[i - 1] * exp(-MonotonicFunction(K_START, K_END, K_H, (double)i / (double)T));
 		rep(i, M) {
 			v_modified[i] = V[i] * EXP_NEG_KT[S[i]];
 			future_value_table[{ R[i], C[i] }] += v_modified[i];
@@ -1109,8 +1131,6 @@ void Solve() {
 			inline bool operator<(const Node& rhs) const { return score < rhs.score; }
 			inline bool operator>(const Node& rhs) const { return score > rhs.score; }
 		};
-		constexpr auto hash_table_size = 19;
-		constexpr int beam_width = 200;
 		static Stack<State, 1 + beam_width * T> state_buffer;
 		static Stack<Node, 1 + beam_width * T> node_buffer;
 		state_buffer.push(State{});
@@ -1171,26 +1191,28 @@ void Solve() {
 		}
 
 		// 結果を出力
-		ASSERT(best_node != nullptr, "best_node がないよ");
-		auto path = array<State::Action, T>();
-		auto node = best_node;
-		rep(i, T) {
-			path[T - 1 - i] = node->action;
-			node = node->parent_node;
-		}
-		ASSERT(node->parent_node == nullptr, "根ノードじゃないよ");
-		for (const auto& action : path) {
-			const auto& before = action.before;
-			const auto& after = action.after;
-			if (before == after) {
-				cout << (short)(after >> 4) << " " << (short)(after & 15u) << endl;
+		{
+			ASSERT(best_node != nullptr, "best_node がないよ");
+			auto path = array<State::Action, T>();
+			auto node = best_node;
+			rep(i, T) {
+				path[T - 1 - i] = node->action;
+				node = node->parent_node;
 			}
-			else {
-				cout << (short)(before >> 4) << " " << (short)(before & 15u) << " "
-					 << (short)(after >> 4) << " " << (short)(after & 15u) << endl;
+			ASSERT(node->parent_node == nullptr, "根ノードじゃないよ");
+			for (const auto& action : path) {
+				const auto& before = action.before;
+				const auto& after = action.after;
+				if (before == after) {
+					cout << (short)(after >> 4) << " " << (short)(after & 15u) << endl;
+				}
+				else {
+					cout << (short)(before >> 4) << " " << (short)(before & 15u) << " "
+						<< (short)(after >> 4) << " " << (short)(after & 15u) << endl;
+				}
 			}
+			cerr << best_node->score << endl;
 		}
-		cerr << best_node->score << endl;
 	}
 
 	
@@ -1211,6 +1233,6 @@ int main() {
 /*
 - 終盤のインフレがすごいが終盤はあまり動けない
 - ビームサーチの時間調整
-
+- ハッシュを雑に
 */
 
