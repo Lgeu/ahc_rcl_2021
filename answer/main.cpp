@@ -5,14 +5,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#ifdef __GNUC__
-//#pragma GCC target("avx2")
-#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,avx2,tune=native")
-#pragma GCC optimize("O3")
-#pragma GCC optimize("Ofast")
-//#pragma GCC optimize("unroll-loops")
-#endif
-
 #include<iostream>
 #include<iomanip>
 #include<vector>
@@ -32,6 +24,7 @@
 #include<random>
 #include<utility>
 #include<cstdio>
+#include<cstring>
 #include<cstdlib>
 #include<ctime>
 #include<string>
@@ -46,12 +39,20 @@
 #include<x86intrin.h>
 #endif
 
+#ifdef __GNUC__
+//#pragma GCC target("avx2")
+#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,avx2,tune=native")
+#pragma GCC optimize("O3")
+#pragma GCC optimize("Ofast")
+//#pragma GCC optimize("unroll-loops")
+#endif
+
 
 // ========================== macroes ==========================
 
-#define rep(i,n) for(ll (i)=0; (i)<(n); (i)++)
-#define rep1(i,n) for(ll (i)=1; (i)<=(n); (i)++)
-#define rep3(i,l,r) for(auto (i)=(l); (i)<(r); (i)++)
+#define rep(i,n) for(ll i=0; (i)<(n); (i)++)
+#define rep1(i,n) for(ll i=1; (i)<=(n); (i)++)
+#define rep3(i,l,r) for(auto i=(l); (i)<(r); (i)++)
 
 //#define NDEBUG
 
@@ -805,6 +806,7 @@ void UpdateValueTable() {
 		ASSERT(t == E[idx_RCSEV], "turn Ç™Ç®Ç©ÇµÇ¢ÇÊ");
 		ASSERT(current_index_table.data[rc] == idx_RCSEV, "è¡ñ≈Ç≥ÇπÇÈñÏçÿÇ™Ç»Ç¢ÇÊ");
 		ASSERT(current_money_table.data[rc] == v, "è¡ñ≈Ç≥ÇπÇÈñÏçÿÇ™Ç»Ç¢ÇÊ");
+		ASSERT(current_value_table.data[rc] == vm, "è¡ñ≈Ç≥ÇπÇÈñÏçÿÇ™Ç»Ç¢ÇÊ");
 
 		current_index_table.data[rc] = -1;
 		current_money_table.data[rc] = 0;
@@ -1064,7 +1066,7 @@ void Solve() {
 		auto idx = (short)0;
 		s_begins[0] = 0;
 		rep(turn, T) {
-			while (idx < S.size() && S[idx] <= turn) {
+			while (idx < (int)S.size() && S[idx] <= turn) {
 				idx++;
 			}
 			s_begins[turn + 1] = idx;
@@ -1075,7 +1077,7 @@ void Solve() {
 		idx = (short)0;
 		e_begins[0] = 0;
 		rep(turn, T) {
-			while (idx < E.size() && E[order_e[idx]] <= turn) {
+			while (idx < (int)E.size() && E[order_e[idx]] <= turn) {
 				idx++;
 			}
 			e_begins[turn + 1] = idx;
@@ -1102,7 +1104,7 @@ void Solve() {
 		};
 		static Stack<State, (int)2e6> state_buffer;
 		static Stack<Node, (int)2e6> node_buffer;
-		state_buffer.push({});
+		state_buffer.push(State{});
 		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });  // TODO èâä˙èÛë‘
 		static Stack<Node, 200000> q;
@@ -1181,6 +1183,7 @@ void Solve() {
 					 << (short)(after >> 4) << " " << (short)(after & 15u) << endl;
 			}
 		}
+		cerr << best_node->score << endl;
 	}
 
 	
