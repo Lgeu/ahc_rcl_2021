@@ -1,5 +1,18 @@
 #ifndef NAGISS_LIBRARY_HPP
 #define NAGISS_LIBRARY_HPP
+
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#ifdef __GNUC__
+//#pragma GCC target("avx2")
+#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,avx2,tune=native")
+#pragma GCC optimize("O3")
+#pragma GCC optimize("Ofast")
+//#pragma GCC optimize("unroll-loops")
+#endif
+
 #include<iostream>
 #include<iomanip>
 #include<vector>
@@ -25,16 +38,14 @@
 #include<sstream>
 #include<chrono>
 #include<climits>
-#include<intrin.h>
 
+#ifdef _MSC_VER
+#include<intrin.h>
+#endif
 #ifdef __GNUC__
-//#pragma GCC target("avx2")
-#pragma GCC target("sse,sse2,sse3,ssse3,sse4,popcnt,abm,mmx,avx,avx2,tune=native")
-#pragma GCC optimize("O3")
-#pragma GCC optimize("Ofast")
-//#pragma GCC optimize("unroll-loops")
 #include<x86intrin.h>
 #endif
+
 
 // ========================== macroes ==========================
 
@@ -479,7 +490,7 @@ struct HashMap {
 		// まだ値が格納されていないことを仮定
 		if (key == EMPTY || key == DELETED) return Set(key + (KeyType)2, value);
 		auto address = key & mask;
-		while (data[address].first != EMPTY || data[address].first != DELETED) address = (address + 1) & mask;
+		while (data[address].first != EMPTY && data[address].first != DELETED) address = (address + 1) & mask;
 		data[address].first = key;
 		data[address].second = value;
 	}
@@ -493,7 +504,7 @@ struct HashMap {
 			address = (address + 1) & mask;
 		}
 		address = key & mask;
-		while (data[address].first != EMPTY || data[address].first != DELETED) address = (address + 1) & mask;
+		while (data[address].first != EMPTY && data[address].first != DELETED) address = (address + 1) & mask;
 		data[address].first = key;
 		new(&data[address].second) T();
 		return data[address].second;
@@ -763,7 +774,7 @@ auto current_money_table = Board<short, N, N>();  // 今生えてる野菜の価値
 auto current_index_table = Board<short, N, N>();  // 野菜インデックス  // TODO: -1 で初期化
 
 void UpdateValueTable() {
-	// 行動直後に呼ばれる
+	// State::Do をする前に呼ぶ
 	
 	// 出現
 	rep3(idx_RCSEV, globals::s_begins[t], globals::s_begins[t + 1]) {
@@ -791,11 +802,11 @@ void UpdateValueTable() {
 		const auto& vm = v_modified[idx_RCSEV];
 		const auto& v = V[idx_RCSEV];
 
-		ASSERT(t == S[idx_RCSEV], "turn がおかしいよ");
+		ASSERT(t == E[idx_RCSEV], "turn がおかしいよ");
 		ASSERT(current_index_table.data[rc] == idx_RCSEV, "消滅させる野菜がないよ");
 		ASSERT(current_money_table.data[rc] == v, "消滅させる野菜がないよ");
 
-		current_index_table.data[rc] = idx_RCSEV;
+		current_index_table.data[rc] = -1;
 		current_money_table.data[rc] = 0;
 		current_value_table.data[rc] = 0.0;
 	}
@@ -848,12 +859,11 @@ struct State {
 		// 1. 収穫機を移動させる
 		//   - machine を変更する
 		//   - future_value_table に応じて subscore2 を差分計算する
-		//   - (注) 野菜があっても money を増やす必要は無い
+		//   - 野菜があれば money を増やす
 		// 2. その日出現する野菜に応じて vegetables のビットを立てる
 		// 3. machines と vegetables の共通部分を取って、野菜を収穫する
 		//   - 収穫した部分の vegetables のビットは折る
-		//   - money が増える
-		// 4. 野菜の出現に応じて future_value_table を減少させ、そのマスに machine があれば subscore2 を減らす
+		// 4. 野菜の出現に応じて future_value_table を減少させ、そのマスに machine があれば subscore2 を減らして money を増やす
 		//   - 実際には変動があった場所のリストを作り、table は触らない
 		// 5. その日消滅する野菜に応じて vegetables のビットを折る
 		// 6. (subscore3 は一旦省略)
@@ -883,6 +893,7 @@ struct State {
 				machines.Flip(after);
 				hash ^= globals::RNT[after];
 				subscore2 += globals::future_value_table.data[after];
+				money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 			}
 		}
 		else {
@@ -893,29 +904,36 @@ struct State {
 			machines.Flip(after);
 			hash ^= globals::RNT[before] ^ globals::RNT[after];
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
+			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 		}
 
-		// Step 2
+		// Step 2: 出現
 		vegetables |= globals::start_bitboards[turn];
 
-		// Step 3
+		// Step 3: 収穫(1)
 		auto intersection = machines & vegetables;
 		vegetables ^= intersection;
+		/*
 		for (const auto& idx : intersection.NonzeroIndices()) {
 			ASSERT(globals::current_money_table.data[idx] >= 1, "無を収穫しようとしてるよ");
 			// 常に連結していることを仮定
 			money += n_machines * globals::current_money_table.data[idx];
 		}
+		*/
 
-		// Step 4
+		// Step 4: 収穫(2)
 		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
 			const auto& idx = RC[idx_vegetables];
 			const auto& vm = globals::v_modified[idx_vegetables];
+			const auto& v = V[idx_vegetables];
+			
 			subscore2 -= machines.Get(idx) * vm;
 			ASSERT(subscore2 >= -1e3, "subscore2 < 0");
+
+			money += machines.Get(idx) * n_machines * v;
 		}
 
-		// Step 5
+		// Step 5: 消滅
 		vegetables.data = _mm256_andnot_si256(globals::end_bitboards[turn].data, vegetables.data);
 
 
@@ -936,7 +954,7 @@ struct State {
 
 		// TODO: n_machines が少ないときの処理
 
-		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) < money) {
+		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money) {
 			// 資金が足りないなら場合 (1 個取り除く)
 			if (n_machines == 1) {
 				// 機械が 1 個のとき
@@ -968,9 +986,11 @@ struct State {
 					// 1 個足す方法を探す
 					// 元々の連結成分に 1 箇所で隣接 <=> xor が 1 かつ, 2 ペアの or の xor が 1
 					auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
-						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()));
+						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()))
+						& ~machines;
 					for (const auto& p_add : cand.NonzeroIndices()) {
-						if (p_remove == p_add) continue;
+						//if (p_remove == p_add) continue;
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");
 						auto new_state = *this;
 						new_state.Do(Action{ p_remove, p_add });
 						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
@@ -989,9 +1009,9 @@ struct State {
 			}
 			else {
 				// 1 個足す方法を探す
-				auto machines_copy = machines;
-				auto&& cand = (machines_copy.Down() ^ machines_copy.Right() ^ machines_copy.Up() ^ machines_copy.Left())
-					& ((machines_copy.Down() | machines_copy.Right()) ^ (machines_copy.Up() | machines_copy.Left()));
+				auto&& cand = (machines.Down() ^ machines.Right() ^ machines.Up() ^ machines.Left())
+					& ((machines.Down() | machines.Right()) ^ (machines.Up() | machines.Left()))
+					& ~machines;
 				for (const auto& p_add : cand.NonzeroIndices()) {
 					auto new_state = *this;
 					new_state.Do(Action{ p_add, p_add });
@@ -1010,9 +1030,10 @@ void Solve() {
 	// 入力を受け取る
 	{
 		int buf;
-		cin >> buf >> buf >> buf;
+		scanf("%d %d %d", &buf, &buf, &buf);
 		rep(i, M) {
-			cin >> R[i] >> C[i] >> S[i] >> E[i] >> V[i];
+			scanf("%hhd %hhd %hd %hd %hd", &R[i], &C[i], &S[i], &E[i], &V[i]);
+			//cin >> R[i] >> C[i] >> S[i] >> E[i] >> V[i];
 			RC[i] = ((u8)R[i] * (u8)N + (u8)C[i]);
 		}
 	}
@@ -1081,7 +1102,8 @@ void Solve() {
 		};
 		static Stack<State, (int)2e6> state_buffer;
 		static Stack<Node, (int)2e6> node_buffer;
-		state_buffer.emplace();
+		state_buffer.push({});
+		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });  // TODO 初期状態
 		static Stack<Node, 200000> q;
 		Node* parent_nodes_begin = node_buffer.begin();
@@ -1147,7 +1169,7 @@ void Solve() {
 			path[T - 1 - i] = node->action;
 			node = node->parent_node;
 		}
-		ASSERT(node == nullptr, "根ノードじゃないよ");
+		ASSERT(node->parent_node == nullptr, "根ノードじゃないよ");
 		for (const auto& action : path) {
 			const auto& before = action.before;
 			const auto& after = action.after;
