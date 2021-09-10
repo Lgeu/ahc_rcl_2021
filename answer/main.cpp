@@ -616,19 +616,21 @@ inline double MonotonicFunction(const double& start, const double& end, const do
 #endif  // NAGISS_LIBRARY_HPP
 
 // パラメータ
-// K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-
-constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.02, 0.06] LOG
-constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.01, 0.05] LOG
-constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
 
 constexpr int hash_table_size = 19;
 constexpr int beam_width = 200;
+
+// K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
+constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.02, 0.06] LOG
+constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.01, 0.05] LOG
+constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
 
 constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [780, 880]
 
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
+
+constexpr int ROUGH_HASH = 0b00010001;  // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 using ull = unsigned long long;
 using i8 = int8_t;
@@ -947,7 +949,7 @@ struct State {
 				ASSERT(money >= 0, "money < 0");
 
 				machines.Flip(after);
-				hash += globals::RNT[after | 0b00010001];
+				hash += globals::RNT[after | ROUGH_HASH];
 				subscore2 += globals::future_value_table.data[after];
 				money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 			}
@@ -958,7 +960,7 @@ struct State {
 			ASSERT(!machines.Get(after), "移動先に機械があるよ");
 			machines.Flip(before);
 			machines.Flip(after);
-			hash += globals::RNT[after | 0b00010001] - globals::RNT[before | 0b00010001];
+			hash += globals::RNT[after | ROUGH_HASH] - globals::RNT[before | ROUGH_HASH];
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
 			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 		}
@@ -1192,7 +1194,7 @@ void Solve() {
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
-		static Stack<Node, 200000> q;
+		static Stack<Node, 400000> q;
 		Node* parent_nodes_begin = node_buffer.begin();
 		Node* parent_nodes_end = node_buffer.end();
 		Node* best_node = nullptr;
