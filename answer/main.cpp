@@ -625,12 +625,12 @@ constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.02, 0.06] LOG
 constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.01, 0.05] LOG
 constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
 
-constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [780, 880]
+constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [790, 870]
 
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
 
-constexpr int ROUGH_HASH = 0b00010001;  // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
+constexpr int ROUGH_HASH = 0b00010001;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 using ull = unsigned long long;
 using i8 = int8_t;
@@ -1004,7 +1004,7 @@ struct State {
 		subscore3 = 0.0;
 		
 		remove_reference<decltype(globals::high_value_indices[0])>::type high_value_idx;  // 価値の高い場所
-		rep(i, 256) {
+		rep(i, 32) {
 			high_value_idx = globals::high_value_indices[i];
 			if (vegetables.Get(high_value_idx)) break;
 		}
