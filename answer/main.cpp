@@ -645,7 +645,7 @@ struct PIDController {
 // パラメータ
 
 #ifdef _MSC_VER
-constexpr double TIME_LIMIT = 15.0;
+constexpr double TIME_LIMIT = 7.0;
 #else
 constexpr double TIME_LIMIT = 1.8;
 #endif
@@ -660,11 +660,13 @@ constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
 constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [790, 870]
 
 // 0 で通常
-constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
+constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 1]
 
 constexpr int ROUGH_HASH = 0b00010001;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
-
+// ビーム
+constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 1.0;      // OPTIMIZE [0.5, 1.0] LOG
+constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.5;  // OPTIMIZE [0.02, 0.98]
 
 // 型
 using ull = unsigned long long;
@@ -847,6 +849,7 @@ auto current_index_table = Board<short, N, N>();   // 野菜インデックス
 auto current_value_table = Board<double, N, N>();  // 今と将来の野菜の価値 (補正無し)
 auto high_value_indices = array<u8, 256>();        // 今と将来の野菜の価値 (補正無し) をソートしたもの
 auto next_end_table = Board<short, N, N>();        // 次にそのマスの価値が落ちるタイミング  // 次がなければ -1
+
 
 void UpdateValueTable() {
 	// State::Do をする前に呼ぶ
@@ -1224,6 +1227,106 @@ struct State {
 
 };
 
+namespace beam_width_control {
+
+// 変動なし
+constexpr auto BASE_SEC_PER_WIDTH = array<int, T>{14048,14035,14011,13974,13927,13869,13801,13725,13641,13551,13456,13358,13257,13156,13055,12955,12858,12765,12676,12593,12516,12445,12380,12323,12272,12229,12192,12161,12137,12119,12106,12098,12095,12095,12100,12108,12119,12132,12147,12164,12181,12200,12218,12236,12254,12271,12286,12299,12311,12320,12327,12331,12332,12330,12325,12318,12309,12297,12284,12269,12253,12238,12222,12208,12195,12184,12175,12170,12167,12168,12172,12180,12191,12204,12221,12240,12261,12283,12306,12330,12354,12377,12400,12422,12443,12463,12481,12499,12516,12532,12547,12563,12578,12593,12609,12625,12642,12659,12678,12697,12716,12736,12757,12778,12799,12821,12842,12863,12885,12906,12928,12949,12971,12993,13016,13039,13063,13088,13115,13142,13171,13201,13233,13266,13300,13335,13371,13407,13444,13480,13517,13553,13588,13622,13655,13687,13717,13746,13773,13798,13823,13846,13867,13888,13908,13928,13947,13965,13984,14002,14021,14039,14058,14076,14095,14114,14132,14150,14168,14185,14202,14218,14234,14249,14263,14276,14289,14301,14312,14323,14334,14345,14356,14367,14378,14390,14403,14417,14432,14448,14465,14484,14504,14525,14547,14571,14595,14620,14646,14673,14700,14727,14755,14782,14810,14837,14864,14890,14916,14941,14966,14990,15014,15036,15059,15080,15102,15123,15144,15165,15186,15208,15230,15252,15276,15300,15325,15350,15377,15404,15432,15461,15490,15519,15549,15578,15606,15635,15662,15688,15714,15738,15761,15783,15804,15824,15843,15861,15878,15895,15911,15927,15942,15957,15971,15985,15999,16012,16025,16037,16048,16060,16071,16081,16092,16103,16115,16127,16140,16155,16172,16190,16211,16234,16259,16287,16318,16350,16386,16423,16462,16502,16544,16586,16628,16670,16712,16753,16792,16830,16866,16901,16933,16962,16990,17014,17037,17057,17075,17091,17105,17117,17128,17137,17144,17151,17156,17161,17166,17170,17174,17177,17181,17186,17190,17196,17201,17207,17213,17220,17227,17234,17241,17247,17253,17258,17263,17266,17269,17270,17270,17269,17267,17263,17259,17254,17250,17245,17240,17237,17235,17235,17237,17243,17251,17263,17279,17300,17325,17355,17390,17429,17473,17523,17576,17635,17697,17764,17834,17907,17984,18063,18144,18227,18311,18396,18482,18568,18653,18738,18822,18904,18985,19064,19141,19216,19288,19358,19425,19489,19550,19608,19663,19713,19760,19803,19842,19876,19906,19931,19952,19967,19978,19984,19986,19983,19977,19967,19955,19939,19922,19903,19883,19862,19842,19823,19805,19789,19775,19764,19756,19751,19751,19755,19763,19775,19793,19816,19844,19877,19915,19959,20008,20063,20122,20188,20258,20333,20413,20497,20585,20676,20770,20866,20964,21061,21158,21254,21348,21438,21524,21606,21683,21753,21818,21876,21928,21974,22014,22049,22078,22103,22124,22141,22157,22170,22182,22193,22204,22215,22227,22239,22252,22266,22281,22296,22312,22328,22344,22361,22377,22394,22410,22426,22443,22459,22476,22494,22513,22533,22556,22582,22611,22644,22681,22723,22770,22822,22880,22943,23012,23086,23165,23248,23335,23425,23518,23612,23708,23803,23899,23994,24086,24177,24265,24350,24432,24511,24585,24656,24724,24787,24848,24905,24960,25013,25063,25112,25161,25209,25258,25308,25359,25413,25469,25529,25593,25661,25733,25810,25891,25977,26068,26162,26259,26360,26463,26567,26672,26777,26880,26982,27082,27178,27271,27359,27443,27522,27595,27664,27728,27786,27841,27891,27938,27982,28022,28061,28098,28133,28167,28201,28234,28266,28299,28332,28364,28396,28429,28461,28492,28523,28554,28584,28614,28644,28673,28703,28734,28765,28799,28835,28874,28918,28966,29020,29080,29147,29222,29304,29395,29494,29601,29715,29838,29967,30102,30242,30387,30536,30687,30839,30992,31145,31296,31446,31592,31736,31875,32011,32141,32267,32388,32503,32612,32717,32816,32910,32998,33082,33162,33237,33309,33378,33445,33509,33572,33634,33696,33758,33821,33885,33951,34019,34089,34161,34237,34315,34395,34479,34566,34655,34748,34843,34941,35042,35145,35252,35361,35473,35587,35703,35822,35942,36063,36185,36307,36429,36550,36671,36790,36909,37025,37140,37254,37367,37479,37591,37703,37817,37931,38048,38168,38290,38415,38544,38676,38810,38948,39088,39229,39372,39515,39658,39800,39941,40080,40216,40351,40482,40611,40737,40861,40982,41101,41217,41332,41444,41554,41662,41768,41871,41972,42070,42166,42259,42350,42438,42523,42607,42690,42772,42853,42935,43017,43102,43189,43279,43374,43473,43577,43686,43801,43921,44048,44179,44315,44456,44601,44749,44899,45052,45205,45359,45513,45666,45819,45971,46123,46274,46426,46578,46731,46887,47046,47207,47373,47544,47720,47900,48086,48277,48473,48672,48875,49081,49289,49497,49705,49912,50118,50320,50519,50714,50905,51092,51274,51452,51625,51794,51960,52122,52281,52438,52593,52746,52898,53049,53200,53350,53500,53651,53802,53955,54108,54263,54419,54578,54738,54901,55065,55232,55402,55573,55746,55921,56097,56274,56451,56628,56803,56977,57148,57317,57481,57642,57798,57950,58097,58240,58380,58517,58651,58786,58920,59057,59198,59345,59499,59663,59839,60027,60231,60452,60692,60951,61232,61536,61862,62212,62585,62981,63399,63837,64292,64763,65246,65737,66232,66726,67215,67693,68156,68597,69014,69401,69755,70074,70355,70598,70802,70969,71100,71199,71268,71313,71337,71346,71344,71336,71327,71319,71317,71323,71339,71364,71400,71445,71498,71558,71622,71689,71755,71819,71879,71933,71981,72020,72051,72074,72090,72099,72102,72101,72097,72092,72085,72080,72076,72075,72076,72080,72088,72098,72110,72124,72139,72155,72170,72184,72196,72207,72215,72221,72225,72227,72227,72227,72225,72224,72223,72224,72226,72230,72237,72246,72258,72272,72288,72306,72325,72345,72364,72383,72401,72416,72428,72438,72443,72445,72443,72436,72426,72412,72394,72374,72352,72329,72305,72282,72261,72242,72227,72216,72208,72206,72208,72215,72225,72238,72253,72269,72285,72298,72309,72314,72314,72307,72291,72266,72231,72186,72131,72064,71986,71897,71796,71683,71559,71423,71275,71115,70943,70759,70562,70354,70134,69902,69659,69406,69143,68871,68591,68304,68010,67712,67409,67103,66795,66485,66175,65866,65558,65253,64952,64657,64368,64088,63818,63561,63317,63090,62881,62693,62527,62386,62270,62183,62123,62094};
+double beam_search_time_limit;
+double t_beam_search;
+double mean_expected_base_sec;
+int TURN_FIX = 950;
+constexpr auto MAX_BEAM_WIDTH = 400;
+constexpr auto MIN_BEAM_WIDTH = 50;
+
+
+// 変動あり
+int turn = 0;
+double cum_base_sec = 0.0;  // s
+double remaining_expected_base_sec = 0.0;  // b
+int beam_width_at_turn_fix;
+
+inline double Schedule(const double& t) {
+	// パラメータ
+	// 相対的なビーム幅の変化
+	return 1.0;
+}
+inline double ExpectedBaseSec(const int& turn_) {  // c
+	return (double)BASE_SEC_PER_WIDTH[turn_] * Schedule((double)turn_ / (double)T);
+}
+int BeamWidth() {
+	// ループの最初で呼ぶ
+	// 呼ばれるたびに状態を更新する
+	if (turn == 0) {
+		// 初期化
+		for (int i = 0; i < T; i++) remaining_expected_base_sec += ExpectedBaseSec(i);
+		mean_expected_base_sec = remaining_expected_base_sec / (double)T;
+		t_beam_search = Time();
+		beam_search_time_limit = TIME_LIMIT - (t_beam_search - globals::T0);
+	}
+
+	// 幅を求める
+	int beam_width;
+	{
+		const auto elapsed_time = Time() - t_beam_search;  // t
+		const auto remaining_time = beam_search_time_limit - elapsed_time;  // r
+
+		// 最初用の処理
+		const auto additional_elapsed_time = beam_search_time_limit * 0.005;
+		const auto additional_cum_base_sec = 1e9 * additional_elapsed_time;
+
+		// 最後用の処理
+		/*
+		const auto additional_remaining_time = 0.2;  // r'
+		//const auto additional_remaining_expected_base_sec = additional_remaining_time * (cum_base_sec + additional_cum_base_sec) / (elapsed_time + additional_elapsed_time);  // これだめだ！！！
+
+		const auto base_sec_processing_time = (elapsed_time + additional_elapsed_time) / (cum_base_sec + additional_cum_base_sec);  // e
+		const auto remaining_processable_base_sec = remaining_time / base_sec_processing_time;                         // v
+		const auto additional_remaining_processable_base_sec = additional_remaining_time / base_sec_processing_time;   // v'
+
+		// 
+		const auto base_sec = (remaining_processable_base_sec + additional_remaining_processable_base_sec)
+			                * ExpectedBaseSec(turn) / (remaining_expected_base_sec + mean_expected_base_sec * additional_remaining_time * T / beam_search_time_limit);  // q = v * c / b
+		beam_width = base_sec / (double)BASE_SEC_PER_WIDTH[turn];
+
+		//beam_width = clipped()
+
+		// src / tbu
+		//beam_width = ((cum_base_sec + additional_cum_base_sec) * (remaining_time              + additional_remaining_time)              * ExpectedBaseSec(turn))
+		//	       / ((elapsed_time + additional_elapsed_time) * (remaining_expected_base_sec + additional_remaining_expected_base_sec) * (double)BASE_SEC_PER_WIDTH[turn]);
+
+		cerr << "elapsed_time=" << elapsed_time << "  cum_base_sec/elapsed_time=" << cum_base_sec / elapsed_time << "  modified=" << (cum_base_sec + additional_cum_base_sec) / (elapsed_time + additional_elapsed_time) << "\n";
+		cerr << "remaining_time=" << remaining_time << "\n";
+		// これうそ！！
+		//cerr << "remaining_expected_base_sec=" << remaining_expected_base_sec << "  expected_remaining_time=" << remaining_expected_base_sec / (cum_base_sec / elapsed_time) << "\n";
+		*/
+
+		// 綺麗な方法わからん！！！！！！
+		if (turn <= TURN_FIX) {
+			const auto base_sec_processing_time = (elapsed_time + additional_elapsed_time) / (cum_base_sec + additional_cum_base_sec);  // e  // 1e-9 くらい
+			const auto remaining_processable_base_sec = remaining_time / base_sec_processing_time;                         // v = r / e
+			const auto base_sec = remaining_processable_base_sec * ExpectedBaseSec(turn) / remaining_expected_base_sec;  // q = v * c / b
+			beam_width = base_sec / (double)BASE_SEC_PER_WIDTH[turn];  // q / u
+			if (turn == TURN_FIX) {
+				beam_width_at_turn_fix = beam_width;
+			}
+		}
+		else {
+			beam_width = beam_width_at_turn_fix * Schedule(turn) / Schedule(TURN_FIX);
+		}
+		beam_width = clipped(beam_width, MIN_BEAM_WIDTH, MAX_BEAM_WIDTH);
+		if (remaining_time < -0.1) beam_width = 24;
+		if (turn % 50 == 49) {
+			cerr << "elapsed_time=" << elapsed_time << "  cum_base_sec/elapsed_time=" << cum_base_sec / elapsed_time << "  modified=" << (cum_base_sec + additional_cum_base_sec) / (elapsed_time + additional_elapsed_time) << "\n";
+			cerr << "remaining_time=" << remaining_time << "\n";
+		}
+	}
+	cum_base_sec += (double)beam_width * (double)BASE_SEC_PER_WIDTH[turn];
+	remaining_expected_base_sec -= ExpectedBaseSec(turn);
+	turn++;
+	return beam_width;
+}
+
+};
 
 void Solve() {
 	// 入力を受け取る
@@ -1300,11 +1403,10 @@ void Solve() {
 	//globals::NEIGHBOR[200][7].Print();
 
 	// ビームサーチ
-	const double t_beam_search = Time();
-	const double beam_search_time_limit = TIME_LIMIT - (t_beam_search - globals::T0);
 	{
+		
 		//auto beam_width_controller = PController(500.0);
-		auto beam_width_controller = PIDController(100.0, 1.0, 1000.0);
+		//auto beam_width_controller = PIDController(100.0, 1.0, 1000.0);
 		struct Node {
 			double score;
 			Node* parent_node;
@@ -1314,27 +1416,24 @@ void Solve() {
 			inline bool operator<(const Node& rhs) const { return score < rhs.score; }
 			inline bool operator>(const Node& rhs) const { return score > rhs.score; }
 		};
-		constexpr auto MAX_BEAM_WIDTH = 1000;
-		constexpr auto MIN_BEAM_WIDTH = 40;
-		auto beam_width = 200;
 
-		static Stack<State, 1 + MAX_BEAM_WIDTH * T> state_buffer;
-		static Stack<Node, 1 + MAX_BEAM_WIDTH * T> node_buffer;
+		static Stack<State, 1 + beam_width_control::MAX_BEAM_WIDTH * T> state_buffer;
+		static Stack<Node, 1 + beam_width_control::MAX_BEAM_WIDTH * T> node_buffer;
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
-		static Stack<Node, 400000> q;
+		static Stack<Node, 800000> q;
 		Node* parent_nodes_begin = node_buffer.begin();
 		Node* parent_nodes_end = node_buffer.end();
 		Node* best_node = nullptr;
+		const double t_beam_search = Time();
+		//const double beam_search_time_limit = TIME_LIMIT - (t_beam_search - globals::T0);
+		int beam_width;
 		rep(t, T) {
-			if (t == 785 || t == 999) {
-				//parent_nodes_begin->state->Print();
-			}
-
 			static HashMap<Node*, 1 << hash_table_size> dict_hash_to_candidate;
 			dict_hash_to_candidate.clear();
 
+			beam_width = beam_width_control::BeamWidth();
 			for (auto parent_node = parent_nodes_begin; parent_node != parent_nodes_end; parent_node++) {
 				static Stack<typename State::NewStateInfo, 10000> next_states;
 				next_states.clear();
@@ -1366,18 +1465,11 @@ void Solve() {
 				beam_width = clipped(beam_width, MIN_BEAM_WIDTH, MAX_BEAM_WIDTH);
 				*/
 
-				static double cum_base_sec = 0.0;
-				const auto elapsed_time = Time() - t_beam_search;
-				const auto remaining_time = beam_search_time_limit - elapsed_time;
-				//beam_width = (remaining_time * cum_base_sec * c) / (elapsed_time * BASE_SEC_PER_WIDTH[t] * b);  // TODO
-				//cum_base_sec += beam_width * BASE_SEC_PER_WIDTH[t];
-
-				beam_width = 200;
 			}
-			if (false) {
+			if (true) {
 				static double t_last = t_beam_search;
 
-				if (t % 1 == 0) {
+				if (t % 50 == 49) {
 					//cerr << "real_progress=" << real_progress << "\n";
 					//cerr << "target_progress=" << target_progress << "\n";
 					//cerr << "deviation=" << real_progress - target_progress << "\n";  // 大きい -> 速く進めすぎ -> ビーム幅を大きくする
@@ -1416,9 +1508,9 @@ void Solve() {
 
 			// ~~~~~~~ 統計用に幅あたりの処理時間を出力する ~~~~~~~
 			{
-				static double t_last = t_beam_search;
-				cerr << (Time() - t_last) / beam_width << "\n";
-				t_last = Time();
+				//static double t_last = t_beam_search;
+				//cerr << (Time() - t_last) / beam_width << "\n";
+				//t_last = Time();
 			}
 			// ~~~~~~~
 		}
@@ -1445,7 +1537,7 @@ void Solve() {
 				}
 			}
 
-			//cerr << best_node->score << endl;
+			cerr << best_node->score << endl;
 		}
 	}
 
