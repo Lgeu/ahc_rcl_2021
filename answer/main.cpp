@@ -1004,9 +1004,9 @@ struct State {
 		subscore3 = 0.0;
 		
 		remove_reference<decltype(globals::high_value_indices[0])>::type high_value_idx;  // 価値の高い場所
-		for (int i = 0;; i++) {
+		rep(i, 256) {
 			high_value_idx = globals::high_value_indices[i];
-			if (!machines.Get(high_value_idx)) break;
+			if (vegetables.Get(high_value_idx)) break;
 		}
 		if (globals::next_end_table.data[high_value_idx] != -1) {
 			const auto value_decline_turn = min(
