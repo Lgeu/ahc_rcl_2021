@@ -665,29 +665,30 @@ struct PIDController {
 // パラメータ
 
 #ifdef _MSC_VER
-constexpr double TIME_LIMIT = 4.0;
+constexpr double TIME_LIMIT = 4.5;
 #else
 constexpr double TIME_LIMIT = 1.7;
 #endif
-constexpr int hash_table_size = 12;         // OPTIMIZE [9, 18]
+
+constexpr int hash_table_size = 18;         // OPTIMIZE [9, 18]
 
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.1111111111111111;  // OPTIMIZE [0.04, 0.2] LOG
-constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.03, 0.1] LOG
-constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
+constexpr double K_START = 0.1055720324355952;  // OPTIMIZE [0.04, 0.2] LOG
+constexpr double K_END = 0.06607865732647253;   // OPTIMIZE [0.03, 0.1] LOG
+constexpr double K_H = 0.8257014865904063;      // OPTIMIZE [0.001, 0.999]
 
-constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [790, 870]
+constexpr short PURCHASE_TURN_LIMIT = 843;  // OPTIMIZE [790, 870]
 
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZEd
 
-constexpr int ROUGH_HASH = 0b00010001;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
+constexpr int ROUGH_HASH = 0;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 // ビーム
-constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 1.0;      // OPTIMIZE [0.25, 4.0] LOG
-constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.5;  // OPTIMIZE [0.02, 0.98]
-constexpr auto MAX_BEAM_WIDTH = 2000;                        // OPTIMIZE [400, 4000] LOG
+constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 2.2967987756408967;      // OPTIMIZE [0.25, 4.0] LOG
+constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.7082372644473831;  // OPTIMIZE [0.02, 0.98]
+constexpr auto MAX_BEAM_WIDTH = 754;                        // OPTIMIZE [400, 4000] LOG
 constexpr auto MIN_BEAM_WIDTH = 50;
 
 // 型
