@@ -466,14 +466,35 @@ template<class T, int max_size> struct Stack {
 	}
 };
 
+
+template<class T, int size = 0x100000, class KeyType = unsigned>
+struct MinimumHashMap {
+	// ハッシュの値が size 以下
+	array<T, size> data;
+	Stack<int, size> used;
+	constexpr static KeyType mask = size - 1;
+	inline MinimumHashMap() {
+		static_assert((size & size - 1) == 0, "not pow of 2");
+		memset(&data[0], (unsigned char)-1, sizeof(data));
+	}
+	inline T& operator[](const KeyType& key) {
+		if (data[key] == (T)-1) used.push(key);
+		return data[key];
+	}
+	inline void clear() {
+		for (const auto& key : used) data[key] = (T)-1;
+		used.right = 0;
+	}
+};
+
 // ハッシュテーブル  // うまく実装できん
 template<class T, int size = 0x100000, class KeyType = unsigned long long>
-struct HashMap {
+struct SlowHashMap {
 	array<pair<KeyType, T>, size> data;
 	constexpr static KeyType mask = size - 1;
 	constexpr static KeyType EMPTY = 0;
 	constexpr static KeyType DELETED = 1;
-	inline HashMap() {
+	inline SlowHashMap() {
 		static_assert((size & size - 1) == 0, "not pow of 2");
 		memset(&data[0], 0, sizeof(data));
 	}
@@ -532,7 +553,6 @@ struct HashMap {
 	}
 
 };
-auto a = HashMap<double>();
 
 // 時間 (秒)
 inline double Time() {
@@ -645,11 +665,11 @@ struct PIDController {
 // パラメータ
 
 #ifdef _MSC_VER
-constexpr double TIME_LIMIT = 7.0;
+constexpr double TIME_LIMIT = 5.0;
 #else
-constexpr double TIME_LIMIT = 1.8;
+constexpr double TIME_LIMIT = 1.7;
 #endif
-constexpr int hash_table_size = 19;
+constexpr int hash_table_size = 10;
 
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
@@ -829,7 +849,7 @@ u8 LeftOf(u8 idx) {
 namespace globals {
 auto T0 = Time();
 auto rng = Random(123456789);                       // random number generator
-auto RNT = array<ull, 10000>();                     // random number table
+auto RNT = array<unsigned, 10000>();                     // random number table
 auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();               // ターンで補正した野菜の価値
 auto NEIGHBOR = array<array<BitBoard, 16>, 256>();  // neighbor[idx][d] := idx から距離 d 以内の場所たち
@@ -924,7 +944,7 @@ struct State {
 	double subscore2;
 	double subscore3;
 
-	ull hash;  // machines のみによって一意に定まる
+	unsigned hash;  // machines のみによって一意に定まる
 
 	struct Action {
 		// 新しく置くときは before == after にする
@@ -932,7 +952,7 @@ struct State {
 	};
 	struct NewStateInfo {
 		double score;
-		ull hash;
+		unsigned hash;
 		Action action;
 	};
 	void Print() {
@@ -993,6 +1013,7 @@ struct State {
 
 				machines.Flip(after);
 				hash += globals::RNT[after | ROUGH_HASH];
+				hash &= (1 << hash_table_size) - 1;
 				subscore2 += globals::future_value_table.data[after];
 				money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 			}
@@ -1004,6 +1025,7 @@ struct State {
 			machines.Flip(before);
 			machines.Flip(after);
 			hash += globals::RNT[after | ROUGH_HASH] - globals::RNT[before | ROUGH_HASH];
+			hash &= (1 << hash_table_size) - 1;
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
 			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
 		}
@@ -1343,7 +1365,7 @@ void Solve() {
 	{
 		using namespace globals;
 		for (auto&& r : RNT) {
-			r = (unsigned)rng.next();
+			r = (unsigned)rng.next() & (1 << hash_table_size) - 1;
 		}
 		EXP_NEG_KT[0] = 1.0;
 		rep1(i, T - 1) EXP_NEG_KT[i] = EXP_NEG_KT[i - 1] * exp(-MonotonicFunction(K_START, K_END, K_H, (double)i / (double)T));
@@ -1422,7 +1444,7 @@ void Solve() {
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
-		static Stack<Node, 800000> q;
+		static Stack<Node, 500000> q;
 		Node* parent_nodes_begin = node_buffer.begin();
 		Node* parent_nodes_end = node_buffer.end();
 		Node* best_node = nullptr;
@@ -1430,7 +1452,7 @@ void Solve() {
 		//const double beam_search_time_limit = TIME_LIMIT - (t_beam_search - globals::T0);
 		int beam_width;
 		rep(t, T) {
-			static HashMap<Node*, 1 << hash_table_size> dict_hash_to_candidate;
+			static MinimumHashMap<int, 1 << hash_table_size> dict_hash_to_candidate;
 			dict_hash_to_candidate.clear();
 
 			beam_width = beam_width_control::BeamWidth();
@@ -1440,16 +1462,16 @@ void Solve() {
 				parent_node->state->GetNextStates(next_states);
 				for (const auto& r : next_states) {
 					//if (t >= 50 && t < T - 1 && r.score < parent_node->score * 0.9) continue;  // 枝刈り  // 悪化
-					auto& old_node = dict_hash_to_candidate[r.hash];
-					if (old_node == NULL) {
+					auto& idx_old_node = dict_hash_to_candidate[r.hash];
+					if (idx_old_node == -1) {
 						// まだそのハッシュの状態が無い
+						idx_old_node = q.size();
 						q.push({ r.score, parent_node, nullptr, r.action });
-						old_node = &q.back();
-					} else if (old_node->score < r.score) {
+					} else if (q[idx_old_node].score < r.score) {
 						// 同じハッシュでスコアがより良い
-						old_node->score = r.score;
-						old_node->parent_node = parent_node;
-						old_node->action = r.action;
+						q[idx_old_node].score = r.score;
+						q[idx_old_node].parent_node = parent_node;
+						q[idx_old_node].action = r.action;
 					}
 				}
 
@@ -1516,6 +1538,7 @@ void Solve() {
 		}
 
 		// 結果を出力
+		cerr << best_node->score << endl;
 		{
 			ASSERT(best_node != nullptr, "best_node がないよ");
 			auto path = array<State::Action, T>();
@@ -1537,7 +1560,6 @@ void Solve() {
 				}
 			}
 
-			cerr << best_node->score << endl;
 		}
 	}
 
