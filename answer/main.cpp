@@ -883,7 +883,7 @@ struct State {
 	double subscore2;
 	double subscore3;
 
-	unsigned hash;  // machines のみによって一意に定まる
+	ull hash;  // machines のみによって一意に定まる
 
 	struct Action {
 		// 新しく置くときは before == after にする
@@ -925,6 +925,8 @@ struct State {
 		// 6. subscore3 を計算する
 		//   - machine の無い、最も価値が高いマスについて、
 		//     その価値が下がる前にそこに到達可能であれば、点をつける
+		// 7. subscore4 を計算する
+		//   - 斜めが多いと将来のスコアが減る
 		
 		// 参照する外部の変数:
 		// future_value_table
@@ -1015,13 +1017,21 @@ struct State {
 			}
 		}
 		
+		// Step 7
+		auto penalty = 1.0;
+		/*
+		if (!(machines.Left() & BitBoard { _mm256_andnot_si256(machines.data, machines.Right().data) }).Empty()) {
+			penalty = 0.98;
+		}
+		*/
+
 
 		if (turn == T) {
 			score = money;
 		}
 		else {
 			score = money
-				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines
+				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines * penalty
 				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2);  // 3 乗和
 		}
 	}
@@ -1073,6 +1083,50 @@ struct State {
 						//	&& new_state.score - new_state.subscore3 * new_state.n_machines < (score - subscore3 * n_machines) * 0.8) continue;  // 枝刈り  // 悪化
 						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
+				}
+
+				// 動かす特殊ケース
+				{
+					using namespace board_index_functions;
+					const auto l = machines.Left();
+					const auto r = machines.Right();
+					const auto u = machines.Up();
+					const auto d = machines.Down();
+					const auto dd = d.Down();
+					const auto cond_center = d & ~u;
+					{
+						const auto dl = d.Left();
+						const auto ddl = dd.Left();
+						const auto dll = dl.Left();
+						const auto cond_dl = cond_center & l & ~r & ~dll & ~ddl;
+						// 左下から右上
+						for (const auto& p_remove : (cond_dl& machines & ~dl).NonzeroIndices()) {
+							const auto& p_add = UpOf(RightOf(p_remove));
+							ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+						}
+						// 右上から左下
+						for (const auto& p_add : (cond_dl & ~machines & dl).NonzeroIndices()) {
+							const auto& p_remove = UpOf(RightOf(p_add));
+							ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+						}
+					}
+					{
+						const auto dr = d.Right();
+						const auto ddr = dd.Right();
+						const auto drr = dr.Right();
+						const auto cond_dr = cond_center & r & ~l & ~drr & ~ddr;
+						// 右下から左上
+						for (const auto& p_remove : (cond_dr& machines & ~dr).NonzeroIndices()) {
+							const auto& p_add = UpOf(LeftOf(p_remove));
+							ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+						}
+						// 右上から左下
+						for (const auto& p_add : (cond_dr & ~machines & dr).NonzeroIndices()) {
+							const auto& p_remove = UpOf(LeftOf(p_add));
+							ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+						}
+					}
+
 				}
 			}
 		}
@@ -1200,6 +1254,11 @@ void Solve() {
 		Node* best_node = nullptr;
 
 		rep(t, T) {
+			if (t == 785 || t == 999) {
+				int aa;
+				parent_nodes_begin->state->Print();
+			}
+
 			static HashMap<Node*, 1 << hash_table_size> dict_hash_to_candidate;
 			dict_hash_to_candidate.clear();
 
@@ -1299,5 +1358,7 @@ int main() {
 - ビーム幅 200 からの候補 60000, 多すぎる
 - subscore3 の改善
 - 前 turn より減ってたら採用しない感じの枝刈り
+- 斜めが少ないほど良い？
+- 桁落ち誤差が思ったよりでかい！！！！！！！やばい！！！！！！！！
 */
 
