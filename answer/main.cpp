@@ -613,16 +613,48 @@ inline double MonotonicFunction(const double& start, const double& end, const do
 	return MonotonicallyIncreasingFunction(h, x) * (end - start) + start;
 }
 
+
+// P 制御
+struct PController {
+	double Kp;
+	inline PController(const double& kp) : Kp(kp) {}
+	inline double operator()(const double& deviation){
+		return Kp * deviation;
+	}
+};
+
+// PID 制御
+struct PIDController {
+	double Kp, Ki, Kd;
+	double sum_deviation, old_deviation;
+	inline PIDController(const double& kp, const double& ki, const double& kd)
+		: Kp(kp), Ki(ki), Kd(kd), sum_deviation(0.0), old_deviation(0.0) {}
+	inline double operator()(const double& deviation) {
+		sum_deviation += deviation;
+		const auto p = Kp * deviation;
+		const auto i = Ki * sum_deviation;
+		const auto d = Kd * (deviation - old_deviation);
+		old_deviation = deviation;
+		cerr << "pid: " << p << " " << i << " " << d << "\n";
+		return p + i + d;
+	}
+};
+
 #endif  // NAGISS_LIBRARY_HPP
 
 // パラメータ
 
+#ifdef _MSC_VER
+constexpr double TIME_LIMIT = 15.0;
+#else
+constexpr double TIME_LIMIT = 1.8;
+#endif
 constexpr int hash_table_size = 19;
-constexpr int beam_width = 200;
+
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.02, 0.06] LOG
-constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.01, 0.05] LOG
+constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.04, 0.12] LOG
+constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.03, 0.1] LOG
 constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
 
 constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [790, 870]
@@ -632,6 +664,9 @@ constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
 
 constexpr int ROUGH_HASH = 0b00010001;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
+
+
+// 型
 using ull = unsigned long long;
 using i8 = int8_t;
 using u8 = uint8_t;
@@ -790,7 +825,8 @@ u8 LeftOf(u8 idx) {
 }
 
 namespace globals {
-auto rng = Random(123456789);                              // random number generator
+auto T0 = Time();
+auto rng = Random(123456789);                       // random number generator
 auto RNT = array<ull, 10000>();                     // random number table
 auto EXP_NEG_KT = array<double, 1000>();
 auto v_modified = array<double, M>();               // ターンで補正した野菜の価値
@@ -1188,6 +1224,7 @@ struct State {
 
 };
 
+
 void Solve() {
 	// 入力を受け取る
 	{
@@ -1263,8 +1300,11 @@ void Solve() {
 	//globals::NEIGHBOR[200][7].Print();
 
 	// ビームサーチ
-	
+	const double t_beam_search = Time();
+	const double beam_search_time_limit = TIME_LIMIT - (t_beam_search - globals::T0);
 	{
+		//auto beam_width_controller = PController(500.0);
+		auto beam_width_controller = PIDController(100.0, 1.0, 1000.0);
 		struct Node {
 			double score;
 			Node* parent_node;
@@ -1274,8 +1314,12 @@ void Solve() {
 			inline bool operator<(const Node& rhs) const { return score < rhs.score; }
 			inline bool operator>(const Node& rhs) const { return score > rhs.score; }
 		};
-		static Stack<State, 1 + beam_width * T> state_buffer;
-		static Stack<Node, 1 + beam_width * T> node_buffer;
+		constexpr auto MAX_BEAM_WIDTH = 1000;
+		constexpr auto MIN_BEAM_WIDTH = 40;
+		auto beam_width = 200;
+
+		static Stack<State, 1 + MAX_BEAM_WIDTH * T> state_buffer;
+		static Stack<Node, 1 + MAX_BEAM_WIDTH * T> node_buffer;
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
@@ -1283,7 +1327,6 @@ void Solve() {
 		Node* parent_nodes_begin = node_buffer.begin();
 		Node* parent_nodes_end = node_buffer.end();
 		Node* best_node = nullptr;
-
 		rep(t, T) {
 			if (t == 785 || t == 999) {
 				//parent_nodes_begin->state->Print();
@@ -1312,7 +1355,41 @@ void Solve() {
 				}
 
 			}
-			cerr << "q.size()=" << q.size() << endl;
+
+
+			// ビーム幅制御
+			{
+				/* 没
+				const auto real_progress = (double)t / (double)T;
+				const auto target_progress = (Time() - t_beam_search) / beam_search_time_limit;
+				beam_width *= (200 + beam_width_controller(real_progress - target_progress)) / 200;
+				beam_width = clipped(beam_width, MIN_BEAM_WIDTH, MAX_BEAM_WIDTH);
+				*/
+
+				static double cum_base_sec = 0.0;
+				const auto elapsed_time = Time() - t_beam_search;
+				const auto remaining_time = beam_search_time_limit - elapsed_time;
+				//beam_width = (remaining_time * cum_base_sec * c) / (elapsed_time * BASE_SEC_PER_WIDTH[t] * b);  // TODO
+				//cum_base_sec += beam_width * BASE_SEC_PER_WIDTH[t];
+
+				beam_width = 200;
+			}
+			if (false) {
+				static double t_last = t_beam_search;
+
+				if (t % 1 == 0) {
+					//cerr << "real_progress=" << real_progress << "\n";
+					//cerr << "target_progress=" << target_progress << "\n";
+					//cerr << "deviation=" << real_progress - target_progress << "\n";  // 大きい -> 速く進めすぎ -> ビーム幅を大きくする
+					cerr << "turn=" << t << "\n";
+					//cerr << "time=" << Time() - t_beam_search << "\n";
+					cerr << "time / width = " << (Time() - t_last) / beam_width << endl;
+					cerr << "beam_width=" << beam_width << "\n";
+					cerr << "q.size()=" << q.size() << "\n";
+					cerr << endl;
+				}
+				t_last = Time();
+			}
 
 			if (beam_width < q.size()) {
 				nth_element(q.begin(), q.begin() + beam_width, q.end(), greater<>());  // ここでハッシュテーブル破壊されている
@@ -1336,6 +1413,14 @@ void Solve() {
 			parent_nodes_end = node_buffer.end();
 
 			globals::UpdateValueTable();
+
+			// ~~~~~~~ 統計用に幅あたりの処理時間を出力する ~~~~~~~
+			{
+				static double t_last = t_beam_search;
+				cerr << (Time() - t_last) / beam_width << "\n";
+				t_last = Time();
+			}
+			// ~~~~~~~
 		}
 
 		// 結果を出力
@@ -1359,7 +1444,8 @@ void Solve() {
 						<< (short)(after >> 4) << " " << (short)(after & 15u) << endl;
 				}
 			}
-			cerr << best_node->score << endl;
+
+			//cerr << best_node->score << endl;
 		}
 	}
 
@@ -1380,8 +1466,8 @@ int main() {
 
 /*
 - 終盤のインフレがすごいが終盤はあまり動けない
-- ビームサーチの時間調整
-- 最重要: ハッシュを雑に
+- 最重要: ビームサーチの時間調整
+- 重要: ハッシュを雑に
   - 微妙か？評価関数改善して誘導したほうが強そう
 - 価値の低い野菜の無視
 - ハッシュが重いしいらないかもしれない
