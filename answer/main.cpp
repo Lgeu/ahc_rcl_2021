@@ -665,28 +665,30 @@ struct PIDController {
 // パラメータ
 
 #ifdef _MSC_VER
-constexpr double TIME_LIMIT = 5.0;
+constexpr double TIME_LIMIT = 4.0;
 #else
 constexpr double TIME_LIMIT = 1.7;
 #endif
-constexpr int hash_table_size = 10;
+constexpr int hash_table_size = 12;         // OPTIMIZE [9, 18]
 
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.0459085635746951;  // OPTIMIZE [0.04, 0.12] LOG
+constexpr double K_START = 0.1111111111111111;  // OPTIMIZE [0.04, 0.2] LOG
 constexpr double K_END = 0.03972635931172601;   // OPTIMIZE [0.03, 0.1] LOG
 constexpr double K_H = 0.7802973321285052;      // OPTIMIZE [0.001, 0.999]
 
 constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [790, 870]
 
 // 0 で通常
-constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 1]
+constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZEd
 
 constexpr int ROUGH_HASH = 0b00010001;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 // ビーム
-constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 1.0;      // OPTIMIZE [0.5, 1.0] LOG
+constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 1.0;      // OPTIMIZE [0.25, 4.0] LOG
 constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.5;  // OPTIMIZE [0.02, 0.98]
+constexpr auto MAX_BEAM_WIDTH = 2000;                        // OPTIMIZE [400, 4000] LOG
+constexpr auto MIN_BEAM_WIDTH = 50;
 
 // 型
 using ull = unsigned long long;
@@ -1257,8 +1259,6 @@ double beam_search_time_limit;
 double t_beam_search;
 double mean_expected_base_sec;
 int TURN_FIX = 950;
-constexpr auto MAX_BEAM_WIDTH = 400;
-constexpr auto MIN_BEAM_WIDTH = 50;
 
 
 // 変動あり
@@ -1270,7 +1270,8 @@ int beam_width_at_turn_fix;
 inline double Schedule(const double& t) {
 	// パラメータ
 	// 相対的なビーム幅の変化
-	return 1.0;
+	return MonotonicFunction(1.0, TARGET_BEAM_WIDTH_INCREASE_RATE, TARGET_BEAM_WIDTH_HALF_PROGRES_RATE, t);
+	//return 1.0;
 }
 inline double ExpectedBaseSec(const int& turn_) {  // c
 	return (double)BASE_SEC_PER_WIDTH[turn_] * Schedule((double)turn_ / (double)T);
@@ -1439,8 +1440,8 @@ void Solve() {
 			inline bool operator>(const Node& rhs) const { return score > rhs.score; }
 		};
 
-		static Stack<State, 1 + beam_width_control::MAX_BEAM_WIDTH * T> state_buffer;
-		static Stack<Node, 1 + beam_width_control::MAX_BEAM_WIDTH * T> node_buffer;
+		static Stack<State, 1 + MAX_BEAM_WIDTH * T> state_buffer;
+		static Stack<Node, 1 + MAX_BEAM_WIDTH * T> node_buffer;
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
