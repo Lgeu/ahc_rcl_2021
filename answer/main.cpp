@@ -630,7 +630,7 @@ constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [780, 880]
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
 
-constexpr int ROUGH_HASH = 0b00010001;  // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
+constexpr int ROUGH_HASH = 0b00000000;  // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 using ull = unsigned long long;
 using i8 = int8_t;
@@ -801,6 +801,7 @@ auto e_begins = array<short, T + 1>();              // order_e のインデッ�
 auto start_bitboards = array<BitBoard, T>();        // そのターンに出現する野菜の位置
 auto end_bitboards = array<BitBoard, T>();          // そのターンに消滅する野菜の位置
 auto next_vegetable = array<short, M>();            // 同じマスに次に現れる野菜のインデックス  // 次がなければ -1
+auto exact_future_value = array<double, M>();       // その野菜が出現した後のそのマスの future_value の値
 
 // ビームサーチ中に変動
 auto t = 0;
@@ -826,9 +827,10 @@ void UpdateValueTable() {
 
 		current_index_table.data[rc] = idx_RCSEV;
 		current_money_table.data[rc] = v;
-		future_value_table.data[rc] -= vm;
+		//future_value_table.data[rc] -= vm;
+		future_value_table.data[rc] = exact_future_value[idx_RCSEV];
 
-		ASSERT(future_value_table.data[rc] >= -1e3, "将来の価値がマイナスになることはないはずだよ");
+		ASSERT(future_value_table.data[rc] >= 0.0, "将来の価値がマイナスになることはないはずだよ");
 	}
 
 	// 消滅
@@ -1179,15 +1181,16 @@ void Solve() {
 		rep1(i, T - 1) EXP_NEG_KT[i] = EXP_NEG_KT[i - 1] * exp(-MonotonicFunction(K_START, K_END, K_H, (double)i / (double)T));
 		rep(i, M) {
 			v_modified[i] = V[i] * EXP_NEG_KT[S[i]];
-			future_value_table[{ R[i], C[i] }] += v_modified[i];
 			start_bitboards[S[i]].Flip(RC[i]);
 			end_bitboards[E[i]].Flip(RC[i]);
 		}
-		// next_vegetable
+		// future_value_table, next_vegetable
 		auto next_vegetable_board = Board<short, N, N>();
 		next_vegetable_board.Fill(-1);
 		next_end_table.Fill(-1);
 		for (int i = M - 1; i >= 0; i--) {
+			exact_future_value[i] = future_value_table.data[RC[i]];
+			future_value_table.data[RC[i]] += v_modified[i];
 			next_vegetable[i] = next_vegetable_board.data[RC[i]];
 			next_vegetable_board.data[RC[i]] = i;
 			next_end_table.data[RC[i]] = E[i];
@@ -1255,8 +1258,7 @@ void Solve() {
 
 		rep(t, T) {
 			if (t == 785 || t == 999) {
-				int aa;
-				parent_nodes_begin->state->Print();
+				//parent_nodes_begin->state->Print();
 			}
 
 			static HashMap<Node*, 1 << hash_table_size> dict_hash_to_candidate;
@@ -1359,6 +1361,5 @@ int main() {
 - subscore3 の改善
 - 前 turn より減ってたら採用しない感じの枝刈り
 - 斜めが少ないほど良い？
-- 桁落ち誤差が思ったよりでかい！！！！！！！やばい！！！！！！！！
 */
 
