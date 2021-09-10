@@ -630,7 +630,7 @@ constexpr short PURCHASE_TURN_LIMIT = 834;  // OPTIMIZE [780, 880]
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZE [0, 2]
 
-constexpr int ROUGH_HASH = 0b00000000;  // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
+constexpr int ROUGH_HASH = 0b00010001;  // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 using ull = unsigned long long;
 using i8 = int8_t;
@@ -1087,19 +1087,24 @@ struct State {
 					}
 				}
 
-				// 動かす特殊ケース
+				// 動かす特殊ケース v -> w
+				const auto l = machines.Left();
+				const auto r = machines.Right();
+				const auto u = machines.Up();
+				const auto d = machines.Down();
+				const auto dd = d.Down();
+				const auto dl = d.Left();
+				const auto ddl = dd.Left();
+				const auto dll = dl.Left();
+				const auto dr = d.Right();
+				const auto ddr = dd.Right();
+				const auto drr = dr.Right();
+				const auto ur = u.Right();
+				const auto rr = r.Right();
 				{
 					using namespace board_index_functions;
-					const auto l = machines.Left();
-					const auto r = machines.Right();
-					const auto u = machines.Up();
-					const auto d = machines.Down();
-					const auto dd = d.Down();
 					const auto cond_center = d & ~u;
 					{
-						const auto dl = d.Left();
-						const auto ddl = dd.Left();
-						const auto dll = dl.Left();
 						const auto cond_dl = cond_center & l & ~r & ~dll & ~ddl;
 						// 左下から右上
 						for (const auto& p_remove : (cond_dl& machines & ~dl).NonzeroIndices()) {
@@ -1113,20 +1118,43 @@ struct State {
 						}
 					}
 					{
-						const auto dr = d.Right();
-						const auto ddr = dd.Right();
-						const auto drr = dr.Right();
 						const auto cond_dr = cond_center & r & ~l & ~drr & ~ddr;
 						// 右下から左上
-						for (const auto& p_remove : (cond_dr& machines & ~dr).NonzeroIndices()) {
-							const auto& p_add = UpOf(LeftOf(p_remove));
+						for (const auto& p_remove : (cond_dr & machines & ~dr).NonzeroIndices()) {
+							const auto p_add = UpOf(LeftOf(p_remove));
 							ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 						}
 						// 右上から左下
 						for (const auto& p_add : (cond_dr & ~machines & dr).NonzeroIndices()) {
-							const auto& p_remove = UpOf(LeftOf(p_add));
+							const auto p_remove = UpOf(LeftOf(p_add));
 							ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 						}
+					}
+				}
+				// 特殊ケース 2: [ -> ]
+				{
+					using namespace board_index_functions;
+					const auto cond_ud = l & r & dl & dr & ~u & ~dd;
+					// 上から下
+					for (const auto& p_add : (cond_ud & ~machines & d).NonzeroIndices()) {
+						const auto p_remove = UpOf(p_add);
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
+					// 下から上
+					for (const auto& p_remove : (cond_ud & machines & ~d).NonzeroIndices()) {
+						const auto p_add = UpOf(p_remove);
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
+					const auto cond_lr = u & d & ur & dr & ~l & ~rr;
+					// 左から右
+					for (const auto& p_add : (cond_lr & ~machines & r).NonzeroIndices()) {
+						const auto p_remove = LeftOf(p_add);
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
+					// 右から左
+					for (const auto& p_remove : (cond_lr & machines & ~r).NonzeroIndices()) {
+						const auto p_add = LeftOf(p_remove);
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 
 				}
