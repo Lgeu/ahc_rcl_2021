@@ -674,13 +674,12 @@ constexpr double TIME_LIMIT = 3.5;
 #endif
 #endif
 
-constexpr int hash_table_size = 10;         // OPTIMIZE [7, 12]
-
+constexpr int hash_table_size = 9;         // OPTIMIZE [7, 12]
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.07684566522292001;  // OPTIMIZE [0.04, 0.1] LOG
-constexpr double K_END = 0.055694664699313993;   // OPTIMIZE [0.03, 0.1] LOG
-constexpr double K_H = 0.6399404802196484;      // OPTIMIZE [0.001, 0.999]
+constexpr double K_START = 0.05121736658913888;  // OPTIMIZE [0.04, 0.1] LOG
+constexpr double K_END = 0.05749112151418476;   // OPTIMIZE [0.03, 0.1] LOG
+constexpr double K_H = 0.293402093102348;      // OPTIMIZE [0.001, 0.999]
 
 constexpr short PURCHASE_TURN_LIMIT = 838;  // OPTIMIZE [810, 850]
 
@@ -690,9 +689,9 @@ constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZEd
 constexpr int ROUGH_HASH = 0;      // OPTIMIZE {0, 0b00010001, 0b00110011}
 
 // ビーム
-constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 3.766020386467783;      // OPTIMIZE [0.25, 4.0] LOG
-constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.492054456097243;  // OPTIMIZE [0.02, 0.98]
-constexpr auto MAX_BEAM_WIDTH = 596;                        // OPTIMIZE [400, 4000] LOG
+constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 0.2502992207227915;      // OPTIMIZE [0.25, 4.0] LOG
+constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.9510358196121675;  // OPTIMIZE [0.02, 0.98]
+constexpr auto MAX_BEAM_WIDTH = 1528;                        // OPTIMIZE [400, 4000] LOG
 constexpr auto MIN_BEAM_WIDTH = 50;
 
 // 型
@@ -1600,7 +1599,7 @@ int BeamWidth() {
 		}
 		beam_width = clipped(beam_width, MIN_BEAM_WIDTH, MAX_BEAM_WIDTH);
 		if (remaining_time < -0.125) beam_width = 24;
-		if (turn % 50 == 49) {
+		if (false && turn % 50 == 49) {
 			cerr << "elapsed_time=" << elapsed_time << "  cum_base_sec/elapsed_time=" << cum_base_sec / elapsed_time << "  modified=" << (cum_base_sec + additional_cum_base_sec) / (elapsed_time + additional_elapsed_time) << "\n";
 			cerr << "remaining_time=" << remaining_time << "\n";
 		}
@@ -1733,7 +1732,7 @@ void Solve() {
 
 			}
 
-			if (true) {
+			if (false) {
 				static double t_last = t_beam_search;
 
 				if (t % 50 == 49) {
