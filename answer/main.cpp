@@ -975,6 +975,16 @@ struct State {
 	inline bool Terminated() const {
 		return turn == 1000;
 	}
+	inline void RecalcFutureScore() {
+		// subscore2 の再計算
+		// 桁落ち誤差対策
+		const auto old_subscore2 = subscore2;
+		subscore2 = 0.0;
+		for (const auto& idx : machines.NonzeroIndices()) {
+			subscore2 += globals::future_value_table.data[idx];
+		}
+		//cerr << "cancellation error: " << subscore2 - old_subscore2 << "\n";
+	}
 	inline void Do(const Action& action) {
 		// 1. 収穫機を移動させる
 		//   - machine を変更する
@@ -1422,15 +1432,8 @@ void Solve() {
 		high_value_indices = Argsort<double, 256, u8, true>(future_value_table.data);
 	}
 
-	//globals::future_value_table.Print();
-	//cout << "NEIGHBOR[200][7]" << endl;
-	//globals::NEIGHBOR[200][7].Print();
-
 	// ビームサーチ
 	{
-		
-		//auto beam_width_controller = PController(500.0);
-		//auto beam_width_controller = PIDController(100.0, 1.0, 1000.0);
 		struct Node {
 			double score;
 			Node* parent_node;
@@ -1479,24 +1482,10 @@ void Solve() {
 
 			}
 
-
-			// ビーム幅制御
-			{
-				/* 没
-				const auto real_progress = (double)t / (double)T;
-				const auto target_progress = (Time() - t_beam_search) / beam_search_time_limit;
-				beam_width *= (200 + beam_width_controller(real_progress - target_progress)) / 200;
-				beam_width = clipped(beam_width, MIN_BEAM_WIDTH, MAX_BEAM_WIDTH);
-				*/
-
-			}
 			if (true) {
 				static double t_last = t_beam_search;
 
 				if (t % 50 == 49) {
-					//cerr << "real_progress=" << real_progress << "\n";
-					//cerr << "target_progress=" << target_progress << "\n";
-					//cerr << "deviation=" << real_progress - target_progress << "\n";  // 大きい -> 速く進めすぎ -> ビーム幅を大きくする
 					cerr << "turn=" << t << "\n";
 					//cerr << "time=" << Time() - t_beam_search << "\n";
 					cerr << "time / width = " << (Time() - t_last) / beam_width << endl;
@@ -1513,6 +1502,9 @@ void Solve() {
 			}
 
 			for (auto&& node : q) {
+				if (t >= 1 && t % 100 == 0) {
+					node.parent_node->state->RecalcFutureScore();
+				}
 				auto state = *node.parent_node->state;
 				state.Do(node.action);
 				state_buffer.push(state);
@@ -1524,6 +1516,7 @@ void Solve() {
 					}
 				}
 			}
+
 			q.clear();
 			parent_nodes_begin = parent_nodes_end;
 			parent_nodes_end = node_buffer.end();
@@ -1579,14 +1572,15 @@ int main() {
 #pragma clang attribute pop
 #endif
 
-
 /*
 - 終盤のインフレがすごいが終盤はあまり動けない
 - 重要: 価値の低い野菜の無視
 - subscore3 の改善
 - 前 turn より減ってたら採用しない感じの枝刈り
 - 斜めが少ないほど良い？
-- 最重要: NRVO 検証
 - 重要: Get の高速化検証
+
+- score2 再計算
+- turn limit 800 turn 時点のハッシュの 2 ビットくらいを保存して管理
 */
 
