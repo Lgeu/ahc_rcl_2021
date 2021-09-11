@@ -664,10 +664,14 @@ struct PIDController {
 
 // パラメータ
 
+#ifdef ONLINE_JUDGE
+constexpr double TIME_LIMIT = 1.7;
+#else
 #ifdef _MSC_VER
 constexpr double TIME_LIMIT = 4.5;
 #else
-constexpr double TIME_LIMIT = 1.7;
+constexpr double TIME_LIMIT = 3.5;
+#endif
 #endif
 
 constexpr int hash_table_size = 9;         // OPTIMIZE [6, 18]
@@ -1100,7 +1104,7 @@ struct State {
 				hash += globals::RNT[after | ROUGH_HASH];
 				hash &= (1 << hash_table_size) - 1;
 				subscore2 += globals::future_value_table.data[after];
-				money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
+				if (vegetables.Get(after)) money += n_machines * globals::current_money_table.data[after];
 			}
 		}
 		else {
@@ -1112,7 +1116,7 @@ struct State {
 			hash += globals::RNT[after | ROUGH_HASH] - globals::RNT[before | ROUGH_HASH];
 			hash &= (1 << hash_table_size) - 1;
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
-			money += vegetables.Get(after) * n_machines * globals::current_money_table.data[after];
+			if (vegetables.Get(after)) money += n_machines * globals::current_money_table.data[after];  //
 		}
 
 		// Step 2: 出現
@@ -1129,6 +1133,8 @@ struct State {
 			const auto& vm = globals::v_modified[idx_vegetables];
 			const auto& v = V[idx_vegetables];
 			
+			// TODO: 半 turn で計算すれば、差分計算
+
 			if (machines.Get(idx)) {
 				subscore2 -= vm;
 				ASSERT(subscore2 >= -1e3, "subscore2 < 0");
@@ -1150,6 +1156,11 @@ struct State {
 		subscore3 = 0.0;
 		
 		remove_reference<decltype(globals::high_value_indices[0])>::type high_value_idx;  // 価値の高い場所
+		// 野菜のない場所
+		// TODO: 半 turn 状態で予め場所と価値を求める
+		// - remove した場所の価値が、元の価値より高くないか確認する
+		//   - 高ければ、その場所を使う
+		// - 元の場所に置いてた場合、その次から探索する、
 		rep(i, 32) {
 			high_value_idx = globals::high_value_indices[i];
 			if (vegetables.Get(high_value_idx)) break;
@@ -1378,7 +1389,7 @@ int BeamWidth() {
 
 		// 最初用の処理
 		const auto additional_elapsed_time = beam_search_time_limit * 0.005;
-		const auto additional_cum_base_sec = 1e9 * additional_elapsed_time;
+		const auto additional_cum_base_sec = (1e9 * 10.0 / TIME_LIMIT) * additional_elapsed_time;
 
 		// 最後用の処理
 		/*
@@ -1646,13 +1657,8 @@ int main() {
 #endif
 
 /*
-- 終盤のインフレがすごいが終盤はあまり動けない
-- 重要: 価値の低い野菜の無視
-- subscore3 の改善
-- 前 turn より減ってたら採用しない感じの枝刈り
-- 斜めが少ないほど良い？
-- 重要: Get の高速化検証
+- TODO: 価値の低い野菜の無視
 - turn limit 800 turn 時点のハッシュの 2 ビットくらいを保存して管理
-- machine の価値を線形に減少させる
+- 単位コストの再計算
 */
 
