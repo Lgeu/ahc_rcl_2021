@@ -738,7 +738,8 @@ struct alignas(32) BitBoard {
 		return res;
 	}
 	inline bool Get(const u8& idx) const {
-		return ((U*)&data)->ulls[idx >> 6] >> (idx & 63u) & 1u;
+		return ((U*)&data)->ulls[idx >> 6] & 1ull << (idx & 63u);
+		//return ((U*)&data)->ulls[idx >> 6] >> (idx & 63u) & 1ull;
 	}
 	inline bool Get2(const u8& idx) const {
 		return ((U*)&data)->bytes[idx >> 3] >> (idx & 7u) & 1u;
