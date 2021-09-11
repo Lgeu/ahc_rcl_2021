@@ -802,6 +802,9 @@ struct alignas(32) BitBoard {
 	inline bool Empty() const {
 		return _mm256_testz_si256(data, data);
 	}
+	inline bool operator==(const BitBoard& rhs) const {
+		return VPTest(~rhs);
+	}
 	inline bool VPTest(const BitBoard& rhs) const {
 		// 論理積が 0 なら True
 		return _mm256_testz_si256(data, rhs.data);
@@ -1061,6 +1064,138 @@ struct State {
 		}
 		//cerr << "cancellation error: " << subscore2 - old_subscore2 << "\n";
 	}
+	inline auto DoFirstHalf(const u8& before, const bool& no_before=false) {
+		if (!no_before) {
+			// 移動させる場合
+			ASSERT(machines.Get(before), "移動元に機械がないよ");
+			machines.Flip(before);
+			hash -= globals::RNT[before | ROUGH_HASH];
+			//hash &= (1 << hash_table_size) - 1;
+			subscore2 -= globals::future_value_table.data[before];
+		}
+
+		// Step 2: 出現
+		vegetables |= globals::start_bitboards[turn];
+
+		// Step 3: 収穫(1)
+		vegetables.data = _mm256_andnot_si256(machines.data, vegetables.data);
+
+		// Step 4: 収穫(2) 出現した瞬間にお金になる
+		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
+			const auto& idx = RC[idx_vegetables];
+			const auto& vm = globals::v_modified[idx_vegetables];
+			const auto& v = V[idx_vegetables];
+			if (machines.Get(idx)) {
+				subscore2 -= vm;
+				money += n_machines * v;
+			}
+		}
+
+		// Step 5: 消滅
+		vegetables.data = _mm256_andnot_si256(globals::end_bitboards[turn].data, vegetables.data);
+
+
+		// !!!!!ターン増やすよ!!!!!
+		turn++;
+		// !!!!!ターン増やすよ!!!!!
+
+
+		// Step 6: subscore3 の計算
+		subscore3 = 0.0;
+		remove_reference<decltype(globals::high_value_indices[0])>::type high_value_idx;  // 価値の高い場所
+		// 野菜のない場所
+		// TODO: 半 turn 状態で予め場所と価値を求める
+		// - remove した場所の価値が、元の価値より高くないか確認する
+		//   - 高ければ、その場所を使う
+		// - 元の場所に置いてた場合、その次から探索する
+		rep(i, 32) {
+			high_value_idx = globals::high_value_indices[i];
+			if (vegetables.Get(high_value_idx)) break;
+		}
+		if (globals::next_end_table.data[high_value_idx] != -1) {
+			const auto value_decline_turn = min(
+				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
+				15
+			);
+			//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
+			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
+				subscore3 = globals::current_value_table.data[high_value_idx];
+			}
+		}
+
+		score = -100.0;
+		turn--;
+		return high_value_idx;
+	
+	}
+	inline void DoSecondHalf(const u8& after, const u8& first_half_high_value_idx, const State& old_state) {
+		vegetables = old_state.vegetables;
+
+		// 移動させる場合
+		ASSERT(!machines.Get(after), "移動先に機械があるよ");
+		machines.Flip(after);
+		hash += globals::RNT[after | ROUGH_HASH];
+		hash &= (1 << hash_table_size) - 1;
+		subscore2 += globals::future_value_table.data[after];
+		if (vegetables.Get(after)) money += n_machines * globals::current_money_table.data[after];  //
+
+		// Step 4: 収穫(2)
+		// after の部分だけ処理がまだ
+		rep3(idx_vegetables, globals::s_begins[turn], globals::s_begins[turn + 1]) {
+			const auto& idx = RC[idx_vegetables];
+			const auto& vm = globals::v_modified[idx_vegetables];
+			const auto& v = V[idx_vegetables];
+			if (after == idx) {
+				subscore2 -= vm;
+				money += n_machines * v;
+			}
+		}
+
+		// Step 2: 出現
+		vegetables |= globals::start_bitboards[turn];
+		// Step 3: 収穫(1)
+		vegetables.data = _mm256_andnot_si256(machines.data, vegetables.data);
+		// Step 5: 消滅
+		vegetables.data = _mm256_andnot_si256(globals::end_bitboards[turn].data, vegetables.data);
+
+
+		// !!!!!ターン増やすよ!!!!!
+		turn++;
+		// !!!!!ターン増やすよ!!!!!
+
+
+		// Step 6: subscore3 の計算
+		subscore3 = 0.0;
+		auto high_value_idx = first_half_high_value_idx;  // 価値の高い場所
+		if (first_half_high_value_idx == after) {
+			// 価値の高い場所に置いてた場合、その次から探索する // i をもってこないとだめじゃん！
+			high_value_idx = globals::high_value_indices[31];
+			rep3(i, 0, 32) {
+			//rep3(i, first_half_subscore3_search_i + 1, 32) {
+				high_value_idx = globals::high_value_indices[i];
+				if (vegetables.Get(high_value_idx)) break;
+			}
+		}
+		if (globals::next_end_table.data[high_value_idx] != -1) {
+			const auto value_decline_turn = min(
+				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
+				15
+			);
+			//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
+			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
+				subscore3 = globals::current_value_table.data[high_value_idx];
+			}
+		}
+
+		if (turn == T) {
+			score = money;
+		}
+		else {
+			score = money
+				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines
+				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef;  // 3 乗和
+		}
+	}
 	inline void Do(const Action& action) {
 		// 1. 収穫機を移動させる
 		//   - machine を変更する
@@ -1233,11 +1368,28 @@ struct State {
 					auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
 						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()))
 						& ~machines;
+
+					auto half_new_state = *this;
+					const auto res_first_half = half_new_state.DoFirstHalf(p_remove);
 					for (const auto& p_add : cand.NonzeroIndices()) {
 						//if (p_remove == p_add) continue;
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");
-						auto new_state = *this;
-						new_state.Do(Action{ p_remove, p_add });
+						//auto new_state = *this;
+						//new_state.Do(Action{ p_remove, p_add });
+						auto new_state = half_new_state;
+						new_state.DoSecondHalf(p_add, res_first_half, *this);
+
+						/*
+						auto tmp_state = *this;
+						tmp_state.Do(Action{ p_remove, p_add });
+						if (tmp_state != new_state) {
+							tmp_state.Print();
+							new_state.Print();
+							cout << (tmp_state.vegetables == new_state.vegetables) << endl;
+							cerr << "err!!!!" << endl;
+						}
+						*/
+
 						//if (turn >= 50 && turn < T - 1
 						//	&& new_state.score - new_state.subscore3 * new_state.n_machines < (score - subscore3 * n_machines) * 0.8) continue;  // 枝刈り  // 悪化
 						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
@@ -1341,6 +1493,13 @@ struct State {
 
 		// 角で v が w になるやつとかも考慮すべき？
 
+	}
+
+	bool operator==(const State& rhs) const {
+		return hash == rhs.hash && machines == rhs.machines && vegetables == rhs.vegetables && abs(score - rhs.score) < 1e-6;
+	}
+	bool operator!=(const State& rhs) const {
+		return !(*this == rhs);
 	}
 
 };
