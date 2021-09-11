@@ -937,6 +937,7 @@ auto current_index_table = Board<short, N, N>();   // 野菜インデックス
 auto current_value_table = Board<double, N, N>();  // 今と将来の野菜の価値 (補正無し)
 auto high_value_indices = array<u8, 256>();        // 今と将来の野菜の価値 (補正無し) をソートしたもの
 auto next_end_table = Board<short, N, N>();        // 次にそのマスの価値が落ちるタイミング  // 次がなければ -1
+auto machine_worth_coef = 1.0;                     // 機械の数の価値
 
 
 void UpdateValueTable() {
@@ -997,6 +998,7 @@ void UpdateValueTable() {
 		high_value_indices = Argsort<double, 256, u8, true>(current_value_table.data);
 	}
 
+	machine_worth_coef = min(1.0, (double)(T - t) / (double)(T - PURCHASE_TURN_LIMIT));
 }
 
 }
@@ -1173,7 +1175,7 @@ struct State {
 		else {
 			score = money
 				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines * penalty
-				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2);  // 3 乗和
+				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef;  // 3 乗和
 		}
 	}
 	template<class Vector>
@@ -1646,5 +1648,6 @@ int main() {
 - 斜めが少ないほど良い？
 - 重要: Get の高速化検証
 - turn limit 800 turn 時点のハッシュの 2 ビットくらいを保存して管理
+- machine の価値を線形に減少させる
 */
 
