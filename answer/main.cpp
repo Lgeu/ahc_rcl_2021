@@ -668,26 +668,26 @@ struct PIDController {
 constexpr double TIME_LIMIT = 1.7;
 #else
 #ifdef _MSC_VER
-constexpr double TIME_LIMIT = 4.5;
+constexpr double TIME_LIMIT = 5.0;
 #else
 constexpr double TIME_LIMIT = 3.5;
 #endif
 #endif
 
-constexpr int hash_table_size = 9;         // OPTIMIZE [6, 18]
+constexpr int hash_table_size = 10;         // OPTIMIZE [7, 12]
 
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.07684566522292001;  // OPTIMIZE [0.04, 0.2] LOG
+constexpr double K_START = 0.07684566522292001;  // OPTIMIZE [0.04, 0.1] LOG
 constexpr double K_END = 0.055694664699313993;   // OPTIMIZE [0.03, 0.1] LOG
 constexpr double K_H = 0.6399404802196484;      // OPTIMIZE [0.001, 0.999]
 
-constexpr short PURCHASE_TURN_LIMIT = 838;  // OPTIMIZE [790, 870]
+constexpr short PURCHASE_TURN_LIMIT = 838;  // OPTIMIZE [810, 850]
 
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZEd
 
-constexpr int ROUGH_HASH = 0;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
+constexpr int ROUGH_HASH = 0;      // OPTIMIZE {0, 0b00010001, 0b00110011}
 
 // ビーム
 constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 3.766020386467783;      // OPTIMIZE [0.25, 4.0] LOG
@@ -950,6 +950,7 @@ auto current_value_table = Board<double, N, N>();  // 今と将来の野菜の�
 auto high_value_indices = array<u8, 256>();        // 今と将来の野菜の価値 (補正無し) をソートしたもの
 auto next_end_table = Board<short, N, N>();        // 次にそのマスの価値が落ちるタイミング  // 次がなければ -1
 auto machine_worth_coef = 1.0;                     // 機械の数の価値
+auto exp_kt = 1.0;
 
 
 void UpdateValueTable() {
@@ -1011,6 +1012,7 @@ void UpdateValueTable() {
 	}
 
 	machine_worth_coef = min(1.0, (double)(T - t) / (double)(T - PURCHASE_TURN_LIMIT));
+	if (t < T - 1) exp_kt = 1.0 / EXP_NEG_KT[t + 1];  // 1 個先読み (重要)
 }
 
 }
@@ -1037,6 +1039,12 @@ struct State {
 		unsigned hash;
 		Action action;
 	};
+
+	struct FirstHalfResult {
+		double machine_worth;
+		u8 high_value_idx;
+	};
+
 	void Print() const {
 		cout << "State{" << endl;
 		cout << "vegetables:" << endl;
@@ -1064,7 +1072,7 @@ struct State {
 		}
 		//cerr << "cancellation error: " << subscore2 - old_subscore2 << "\n";
 	}
-	inline auto DoFirstHalf(const u8& before, const bool& no_before=false) {
+	inline FirstHalfResult DoFirstHalf(const u8& before, const bool& no_before=false) {
 		if (!no_before) {
 			// 移動させる場合
 			ASSERT(machines.Get(before), "移動元に機械がないよ");
@@ -1125,10 +1133,12 @@ struct State {
 
 		score = -100.0;
 		turn--;
-		return high_value_idx;
+		return { (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef, high_value_idx };
 	
 	}
-	inline void DoSecondHalf(const u8& after, const u8& first_half_high_value_idx, const State& old_state) {
+	inline void DoSecondHalf(const u8& after, const FirstHalfResult& first_half_result, const State& old_state) {
+		const auto& first_half_high_value_idx = first_half_result.high_value_idx;
+		const auto& machine_worth = first_half_result.machine_worth;
 		vegetables = old_state.vegetables;
 
 		// 移動させる場合
@@ -1171,7 +1181,6 @@ struct State {
 			// 価値の高い場所に置いてた場合、その次から探索する // i をもってこないとだめじゃん！
 			high_value_idx = globals::high_value_indices[31];
 			rep3(i, 0, 32) {
-			//rep3(i, first_half_subscore3_search_i + 1, 32) {
 				high_value_idx = globals::high_value_indices[i];
 				if (vegetables.Get(high_value_idx)) break;
 			}
@@ -1192,8 +1201,8 @@ struct State {
 		}
 		else {
 			score = money
-				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines
-				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef;  // 3 乗和
+				+ (subscore2 * globals::exp_kt + subscore3) * n_machines
+				+ machine_worth;  // 3 乗和
 		}
 	}
 	inline void Do(const Action& action) {
