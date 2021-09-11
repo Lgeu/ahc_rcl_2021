@@ -670,15 +670,15 @@ constexpr double TIME_LIMIT = 4.5;
 constexpr double TIME_LIMIT = 1.7;
 #endif
 
-constexpr int hash_table_size = 18;         // OPTIMIZE [9, 18]
+constexpr int hash_table_size = 9;         // OPTIMIZE [6, 18]
 
 
 // K: 大きいほど未来の価値が小さくなる log2/100 = 0.007 くらいのとき野菜のインフレと釣り合う？
-constexpr double K_START = 0.1055720324355952;  // OPTIMIZE [0.04, 0.2] LOG
-constexpr double K_END = 0.06607865732647253;   // OPTIMIZE [0.03, 0.1] LOG
-constexpr double K_H = 0.8257014865904063;      // OPTIMIZE [0.001, 0.999]
+constexpr double K_START = 0.07684566522292001;  // OPTIMIZE [0.04, 0.2] LOG
+constexpr double K_END = 0.055694664699313993;   // OPTIMIZE [0.03, 0.1] LOG
+constexpr double K_H = 0.6399404802196484;      // OPTIMIZE [0.001, 0.999]
 
-constexpr short PURCHASE_TURN_LIMIT = 843;  // OPTIMIZE [790, 870]
+constexpr short PURCHASE_TURN_LIMIT = 838;  // OPTIMIZE [790, 870]
 
 // 0 で通常
 constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZEd
@@ -686,9 +686,9 @@ constexpr int SUBSCORE3_TIGHT_TURN = 0;     // OPTIMIZEd
 constexpr int ROUGH_HASH = 0;      // OPTIMIZE {0, 0b00000001, 0b00010001, 0b00010011, 0b00110011}
 
 // ビーム
-constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 2.2967987756408967;      // OPTIMIZE [0.25, 4.0] LOG
-constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.7082372644473831;  // OPTIMIZE [0.02, 0.98]
-constexpr auto MAX_BEAM_WIDTH = 754;                        // OPTIMIZE [400, 4000] LOG
+constexpr double TARGET_BEAM_WIDTH_INCREASE_RATE = 3.766020386467783;      // OPTIMIZE [0.25, 4.0] LOG
+constexpr double TARGET_BEAM_WIDTH_HALF_PROGRES_RATE = 0.492054456097243;  // OPTIMIZE [0.02, 0.98]
+constexpr auto MAX_BEAM_WIDTH = 596;                        // OPTIMIZE [400, 4000] LOG
 constexpr auto MIN_BEAM_WIDTH = 50;
 
 // 型
@@ -713,6 +713,7 @@ struct alignas(32) BitBoard {
 	__m256i data;
 	union U {
 		__m256i raveled;
+		array<u8, 32> bytes;
 		array<u16, 16> rows;
 		array<ull, 4> ulls;
 	};
@@ -738,6 +739,17 @@ struct alignas(32) BitBoard {
 	}
 	inline bool Get(const u8& idx) const {
 		return ((U*)&data)->ulls[idx >> 6] >> (idx & 63u) & 1u;
+	}
+	inline bool Get2(const u8& idx) const {
+		return ((U*)&data)->bytes[idx >> 3] >> (idx & 7u) & 1u;
+	}
+	inline bool Get3(const u8& idx) const {
+		static constexpr auto table = array<u8, 8>{ 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u };
+		return ((U*)&data)->bytes[idx >> 3] & table[idx & 7u];
+	}
+	inline bool Get4(const u8& idx) const {
+		static constexpr auto table = array<u8, 256>{ 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u, 1u, 2u, 4u, 8u, 16u, 32u, 64u, 128u };
+		return ((U*)&data)->bytes[idx >> 3] & table[idx];
 	}
 	inline void Flip(const u8& idx) {
 		((U*)&data)->ulls[idx >> 6] ^= 1ull << (idx & 63u);
@@ -826,6 +838,59 @@ void TestBitBoard() {
 	for (const auto& idx : bb.NonzeroIndices()) bb.Flip(idx);
 	cout << "empty" << endl;
 	cout << bb.Empty() << endl;
+}
+void TestBitBoardGetSpeed() {
+	double t0;
+	auto rng = Random(42);
+	auto bb = BitBoard{ 0 };
+	const int n = 1e9;
+	rep(i, n) {
+		bb.Flip(rng.next() & 255);
+	}
+	{
+		cerr << 1 << endl;
+		const auto t0 = Time();
+		int cnt = 0;
+		rep(i, n) {
+			bb.Flip(rng.next() & 255);
+			cnt += bb.Get(rng.next() & 255);
+		}
+		cerr << cnt << endl;
+		cerr << Time() - t0 << endl;
+	}
+	{
+		cerr << 2 << endl;
+		const auto t0 = Time();
+		int cnt = 0;
+		rep(i, n) {
+			bb.Flip(rng.next() & 255);
+			cnt += bb.Get2(rng.next() & 255);
+		}
+		cerr << cnt << endl;
+		cerr << Time() - t0 << endl;
+	}
+	{
+		cerr << 3 << endl;
+		const auto t0 = Time();
+		int cnt = 0;
+		rep(i, n) {
+			bb.Flip(rng.next() & 255);
+			cnt += bb.Get3(rng.next() & 255);
+		}
+		cerr << cnt << endl;
+		cerr << Time() - t0 << endl;
+	}
+	{
+		cerr << 4 << endl;
+		const auto t0 = Time();
+		int cnt = 0;
+		rep(i, n) {
+			bb.Flip(rng.next() & 255);
+			cnt += bb.Get4(rng.next() & 255);
+		}
+		cerr << cnt << endl;
+		cerr << Time() - t0 << endl;
+	}
 }
 }
 
@@ -1348,7 +1413,7 @@ int BeamWidth() {
 			beam_width = beam_width_at_turn_fix * Schedule(turn) / Schedule(TURN_FIX);
 		}
 		beam_width = clipped(beam_width, MIN_BEAM_WIDTH, MAX_BEAM_WIDTH);
-		if (remaining_time < -0.1) beam_width = 24;
+		if (remaining_time < -0.125) beam_width = 24;
 		if (turn % 50 == 49) {
 			cerr << "elapsed_time=" << elapsed_time << "  cum_base_sec/elapsed_time=" << cum_base_sec / elapsed_time << "  modified=" << (cum_base_sec + additional_cum_base_sec) / (elapsed_time + additional_elapsed_time) << "\n";
 			cerr << "remaining_time=" << remaining_time << "\n";
@@ -1564,6 +1629,7 @@ void Solve() {
 
 int main() {
 	//test::TestBitBoard();
+	//test::TestBitBoardGetSpeed();
 	Solve();
 
 }
@@ -1579,8 +1645,6 @@ int main() {
 - 前 turn より減ってたら採用しない感じの枝刈り
 - 斜めが少ないほど良い？
 - 重要: Get の高速化検証
-
-- score2 再計算
 - turn limit 800 turn 時点のハッシュの 2 ビットくらいを保存して管理
 */
 
