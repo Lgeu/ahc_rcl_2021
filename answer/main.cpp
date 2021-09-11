@@ -797,6 +797,10 @@ struct alignas(32) BitBoard {
 	inline bool Empty() const {
 		return _mm256_testz_si256(data, data);
 	}
+	inline bool VPTest(const BitBoard& rhs) const {
+		// 論理積が 0 なら True
+		return _mm256_testz_si256(data, rhs.data);
+	}
 	inline BitBoard& Expand() {  // 上下左右に広がる
 		return *this |= Down() |= Right() |= Up() |= Left();
 	}
@@ -1025,7 +1029,7 @@ struct State {
 		unsigned hash;
 		Action action;
 	};
-	void Print() {
+	void Print() const {
 		cout << "State{" << endl;
 		cout << "vegetables:" << endl;
 		vegetables.Print();
@@ -1155,7 +1159,7 @@ struct State {
 				15
 			);
 			//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
-			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn] & machines).Empty()) {  // 到達可能であれば
+			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
 				subscore3 = globals::current_value_table.data[high_value_idx];
 			}
 		}
