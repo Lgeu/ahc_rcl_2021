@@ -1410,14 +1410,17 @@ struct State {
 				const auto u = machines.Up();
 				const auto d = machines.Down();
 				const auto dd = d.Down();
+				const auto ddd = dd.Down();
 				const auto dl = d.Left();
-				const auto ddl = dd.Left();
 				const auto dll = dl.Left();
-				const auto dr = d.Right();
+				const auto ddl = dd.Left();
 				const auto ddr = dd.Right();
+				const auto dr = d.Right();
 				const auto drr = dr.Right();
 				const auto ur = u.Right();
+				const auto urr = ur.Right();
 				const auto rr = r.Right();
+				const auto rrr = rr.Right();
 				{
 					using namespace board_index_functions;
 					const auto cond_center = d & ~u;
@@ -1451,10 +1454,15 @@ struct State {
 				// 特殊ケース 2: [ -> ]
 				{
 					using namespace board_index_functions;
-					const auto cond_ud = l & r & dl & dr & ~u & ~dd;
+					const auto cond_ud  = l & r & dl & dr             & ~u & ~dd;
+					const auto cond_ud2 = l & r & dl & dr & ddl & ddr & ~u & ~ddd;
 					// 上から下
 					for (const auto& p_add : (cond_ud & ~machines & d).NonzeroIndices()) {
 						const auto p_remove = UpOf(p_add);
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
+					for (const auto& p_add : (cond_ud2 & ~machines & dd).NonzeroIndices()) {
+						const auto p_remove = UpOf(UpOf(p_add));
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 					// 下から上
@@ -1462,15 +1470,29 @@ struct State {
 						const auto p_add = UpOf(p_remove);
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
-					const auto cond_lr = u & d & ur & dr & ~l & ~rr;
+					for (const auto& p_remove : (cond_ud2 & machines & ~dd).NonzeroIndices()) {
+						const auto p_add = UpOf(UpOf(p_remove));
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
+
+					const auto cond_lr  = u & d & ur & dr             & ~l & ~rr;
+					const auto cond_lr2 = u & d & ur & dr & urr & drr & ~l & ~rrr;
 					// 左から右
 					for (const auto& p_add : (cond_lr & ~machines & r).NonzeroIndices()) {
 						const auto p_remove = LeftOf(p_add);
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
+					for (const auto& p_add : (cond_lr2 & ~machines & rr).NonzeroIndices()) {
+						const auto p_remove = LeftOf(LeftOf(p_add));
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
 					// 右から左
 					for (const auto& p_remove : (cond_lr & machines & ~r).NonzeroIndices()) {
 						const auto p_add = LeftOf(p_remove);
+						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+					}
+					for (const auto& p_remove : (cond_lr2 & machines & ~rr).NonzeroIndices()) {
+						const auto p_add = LeftOf(LeftOf(p_remove));
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 
