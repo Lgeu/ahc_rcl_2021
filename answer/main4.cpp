@@ -1026,12 +1026,14 @@ struct State {
 	double score;
 	double subscore2;
 	double subscore3;
+	int next_removal;
 
 	unsigned hash;  // machines のみによって一意に定まる
 
 	struct Action {
 		// 新しく置くときは before == after にする
 		u8 before, after;
+		bool regist_next_removal;
 	};
 	struct NewStateInfo {
 		double score;
@@ -1071,15 +1073,14 @@ struct State {
 		}
 		//cerr << "cancellation error: " << subscore2 - old_subscore2 << "\n";
 	}
-	inline FirstHalfResult DoFirstHalf(const u8& before, const bool& no_before=false) {
-		if (!no_before) {
-			// 移動させる場合
-			ASSERT(machines.Get(before), "移動元に機械がないよ");
-			machines.Flip(before);
-			hash -= globals::RNT[before | ROUGH_HASH];
-			//hash &= (1 << hash_table_size) - 1;
-			subscore2 -= globals::future_value_table.data[before];
-		}
+	inline FirstHalfResult DoFirstHalf(const u8& before, const bool& regist_next_removal) {
+		// 移動させる場合
+		ASSERT(machines.Get(before), "移動元に機械がないよ");
+		machines.Flip(before);
+		hash -= globals::RNT[before | ROUGH_HASH];
+		//hash &= (1 << hash_table_size) - 1;
+		subscore2 -= globals::future_value_table.data[before];
+
 
 		// Step 2: 出現
 		vegetables |= globals::start_bitboards[turn];
@@ -1121,12 +1122,14 @@ struct State {
 		}
 		if (globals::next_end_table.data[high_value_idx] != -1) {
 			const auto value_decline_turn = min(
-				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
+				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN - regist_next_removal,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
 				15
 			);
-			//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
-			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
-				subscore3 = globals::current_value_table.data[high_value_idx];
+			if (value_decline_turn >= 0) {
+				//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
+				if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
+					subscore3 = globals::current_value_table.data[high_value_idx];
+				}
 			}
 		}
 
@@ -1135,7 +1138,7 @@ struct State {
 		return { (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef, high_value_idx };
 	
 	}
-	inline void DoSecondHalf(const u8& after, const FirstHalfResult& first_half_result, const State& old_state) {
+	inline void DoSecondHalf(const u8& after, const FirstHalfResult& first_half_result, const State& old_state, const bool& regist_next_removal) {
 		const auto& first_half_high_value_idx = first_half_result.high_value_idx;
 		const auto& machine_worth = first_half_result.machine_worth;
 		vegetables = old_state.vegetables;
@@ -1145,6 +1148,11 @@ struct State {
 		machines.Flip(after);
 		hash += globals::RNT[after | ROUGH_HASH];
 		hash &= (1 << hash_table_size) - 1;
+		// next_removal の登録判定
+		if (regist_next_removal) {
+			ASSERT(next_removal == -1, "すでに next_removal があるよ");
+			next_removal = after;
+		}
 		subscore2 += globals::future_value_table.data[after];
 		if (vegetables.Get(after)) money += n_machines * globals::current_money_table.data[after];  //
 
@@ -1232,6 +1240,7 @@ struct State {
 		// Step 1
 		const auto& before = action.before;
 		const auto& after = action.after;
+		const auto& regist_next_removal = action.regist_next_removal;
 		if (before == after) {
 			if (machines.Get(after)) {
 				// パスする場合
@@ -1258,6 +1267,15 @@ struct State {
 			machines.Flip(after);
 			hash += globals::RNT[after | ROUGH_HASH] - globals::RNT[before | ROUGH_HASH];
 			hash &= (1 << hash_table_size) - 1;
+			// next_removal の登録判定
+			if (regist_next_removal) {
+				ASSERT(next_removal == -1, "すでに next_removal があるよ");
+				next_removal = after;
+			}
+			else if (next_removal != -1) {  // next_removal の除去判定
+				ASSERT((u8)next_removal == before, "削除制約守って");
+				next_removal = -1;
+			}
 			subscore2 += globals::future_value_table.data[after] - globals::future_value_table.data[before];
 			if (vegetables.Get(after)) money += n_machines * globals::current_money_table.data[after];  //
 		}
@@ -1310,12 +1328,14 @@ struct State {
 		}
 		if (globals::next_end_table.data[high_value_idx] != -1) {
 			const auto value_decline_turn = min(
-				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
+				globals::next_end_table.data[high_value_idx] - turn + 1 - SUBSCORE3_TIGHT_TURN - regist_next_removal,  // 価値が落ちるまでに行動できる回数  // 同じであっても 1 回猶予がある
 				15
 			);
-			//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
-			if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
-				subscore3 = globals::current_value_table.data[high_value_idx];
+			if (value_decline_turn >= 0) {
+				//ASSERT_RANGE(value_decline_turn, 1, 16);  // 先読みしてないのでこれにひっかかる…
+				if (!(globals::NEIGHBOR[high_value_idx][value_decline_turn].VPTest(machines))) {  // 到達可能であれば
+					subscore3 = globals::current_value_table.data[high_value_idx];
+				}
 			}
 		}
 		
@@ -1344,7 +1364,26 @@ struct State {
 
 		if (((int)n_machines + 1) * ((int)n_machines + 1) * ((int)n_machines + 1) > money || turn >= PURCHASE_TURN_LIMIT) {
 			// 資金が足りない場合 (1 個取り除く) or 一定ターン以降
-			if (n_machines == 1) {
+			if (next_removal != -1) {
+				// 取り除く機械が決まっているとき！！！！！！
+				// hashきをつける！！！！！！！！！！！！
+				const auto p_remove = (u8)next_removal;
+				auto machines_removed = machines;
+				machines_removed.Flip((u8)next_removal);
+
+				auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
+					& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()))
+					& ~machines_removed;
+
+				for (const auto& p_add : cand.NonzeroIndices()) {
+					if (next_removal != -1 && (int)p_add == next_removal) continue;  // この条件は多分引っかからないけど一応…
+					auto new_state = *this;
+					new_state.Do(Action{ p_remove, p_add });  // これ half do はまだ未対応
+					res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
+				}
+
+			}
+			else if (n_machines == 1) {
 				// 機械が 1 個のとき
 				const auto p_remove = machines.NonzeroIndices()[0];
 				rep(p_add, 256) {
@@ -1373,19 +1412,19 @@ struct State {
 
 					// 1 個足す方法を探す
 					// 元々の連結成分に 1 箇所で隣接 <=> xor が 1 かつ, 2 ペアの or の xor が 1
-					auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
+					auto cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
 						& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()))
 						& ~machines;
 
 					auto half_new_state = *this;
-					const auto res_first_half = half_new_state.DoFirstHalf(p_remove);
+					const auto res_first_half = half_new_state.DoFirstHalf(p_remove, false);
 					for (const auto& p_add : cand.NonzeroIndices()) {
 						//if (p_remove == p_add) continue;
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");
 						//auto new_state = *this;
 						//new_state.Do(Action{ p_remove, p_add });
 						auto new_state = half_new_state;
-						new_state.DoSecondHalf(p_add, res_first_half, *this);
+						new_state.DoSecondHalf(p_add, res_first_half, *this, false);
 
 						/*
 						auto tmp_state = *this;
@@ -1402,6 +1441,30 @@ struct State {
 						//	&& new_state.score - new_state.subscore3 * new_state.n_machines < (score - subscore3 * n_machines) * 0.8) continue;  // 枝刈り  // 悪化
 						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
+
+
+					// ループを認めるケース
+					auto&& cand2 = (machines_removed.Down() | machines_removed.Right() | machines_removed.Up() | machines_removed.Left())
+						& ~(cand | machines);
+					auto half_new_state_2 = *this;
+					const auto res_first_half_2 = half_new_state_2.DoFirstHalf(p_remove, true);
+					for (const auto& p_add : cand2.NonzeroIndices()) {
+						auto new_state = half_new_state_2;
+						new_state.DoSecondHalf(p_add, res_first_half_2, *this, true);
+
+						/*
+						auto tmp_state = *this;
+						tmp_state.Do(Action{ p_remove, p_add, true });
+						if (tmp_state != new_state) {
+							tmp_state.Print();
+							new_state.Print();
+							cout << (tmp_state.vegetables == new_state.vegetables) << endl;
+							cerr << "err!!!!" << endl;
+						}
+						*/
+						res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add, true} });
+					}
+
 				}
 
 				// 動かす特殊ケース v -> w
@@ -1410,17 +1473,14 @@ struct State {
 				const auto u = machines.Up();
 				const auto d = machines.Down();
 				const auto dd = d.Down();
-				const auto ddd = dd.Down();
 				const auto dl = d.Left();
-				const auto dll = dl.Left();
 				const auto ddl = dd.Left();
-				const auto ddr = dd.Right();
+				const auto dll = dl.Left();
 				const auto dr = d.Right();
+				const auto ddr = dd.Right();
 				const auto drr = dr.Right();
 				const auto ur = u.Right();
-				const auto urr = ur.Right();
 				const auto rr = r.Right();
-				const auto rrr = rr.Right();
 				{
 					using namespace board_index_functions;
 					const auto cond_center = d & ~u;
@@ -1454,15 +1514,10 @@ struct State {
 				// 特殊ケース 2: [ -> ]
 				{
 					using namespace board_index_functions;
-					const auto cond_ud  = l & r & dl & dr             & ~u & ~dd;
-					const auto cond_ud2 = l & r & dl & dr & ddl & ddr & ~u & ~ddd;
+					const auto cond_ud = l & r & dl & dr & ~u & ~dd;
 					// 上から下
 					for (const auto& p_add : (cond_ud & ~machines & d).NonzeroIndices()) {
 						const auto p_remove = UpOf(p_add);
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
-					for (const auto& p_add : (cond_ud2 & ~machines & dd).NonzeroIndices()) {
-						const auto p_remove = UpOf(UpOf(p_add));
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 					// 下から上
@@ -1470,29 +1525,15 @@ struct State {
 						const auto p_add = UpOf(p_remove);
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
-					for (const auto& p_remove : (cond_ud2 & machines & ~dd).NonzeroIndices()) {
-						const auto p_add = UpOf(UpOf(p_remove));
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
-
-					const auto cond_lr  = u & d & ur & dr             & ~l & ~rr;
-					const auto cond_lr2 = u & d & ur & dr & urr & drr & ~l & ~rrr;
+					const auto cond_lr = u & d & ur & dr & ~l & ~rr;
 					// 左から右
 					for (const auto& p_add : (cond_lr & ~machines & r).NonzeroIndices()) {
 						const auto p_remove = LeftOf(p_add);
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
-					for (const auto& p_add : (cond_lr2 & ~machines & rr).NonzeroIndices()) {
-						const auto p_remove = LeftOf(LeftOf(p_add));
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
 					// 右から左
 					for (const auto& p_remove : (cond_lr & machines & ~r).NonzeroIndices()) {
 						const auto p_add = LeftOf(p_remove);
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
-					for (const auto& p_remove : (cond_lr2 & machines & ~rr).NonzeroIndices()) {
-						const auto p_add = LeftOf(LeftOf(p_remove));
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 
@@ -1510,18 +1551,23 @@ struct State {
 			}
 			else {
 				// 1 個足す方法を探す
-				auto&& cand = (machines.Down() ^ machines.Right() ^ machines.Up() ^ machines.Left())
-					& ((machines.Down() | machines.Right()) ^ (machines.Up() | machines.Left()))
-					& ~machines;
+				// next_removal があるときは、それを保留: 除いた状態で木を維持しないといけない
+
+				auto machines_removed = machines;
+				if (next_removal != -1) machines_removed.Flip((u8)next_removal);
+
+				auto&& cand = (machines_removed.Down() ^ machines_removed.Right() ^ machines_removed.Up() ^ machines_removed.Left())
+					& ((machines_removed.Down() | machines_removed.Right()) ^ (machines_removed.Up() | machines_removed.Left()))
+					& ~machines_removed;
+
 				for (const auto& p_add : cand.NonzeroIndices()) {
+					if (next_removal != -1 && (int)p_add == next_removal) continue;  // この条件は多分引っかからないけど一応…
 					auto new_state = *this;
 					new_state.Do(Action{ p_add, p_add });
 					res.push(NewStateInfo{ new_state.score, new_state.hash, {p_add, p_add} });
 				}
 			}
 		}
-
-		// 角で v が w になるやつとかも考慮すべき？
 
 	}
 
@@ -1720,6 +1766,7 @@ void Solve() {
 		static Stack<Node, 1 + MAX_BEAM_WIDTH * T> node_buffer;
 		state_buffer.push(State{});
 		state_buffer.back().money = 1;
+		state_buffer.back().next_removal = -1;
 		node_buffer.push({ state_buffer[0].score, nullptr, &state_buffer[0] });
 		static Stack<Node, 500000> q;
 		Node* parent_nodes_begin = node_buffer.begin();

@@ -1,4 +1,4 @@
-﻿#ifndef NAGISS_LIBRARY_HPP
+#ifndef NAGISS_LIBRARY_HPP
 #define NAGISS_LIBRARY_HPP
 
 #ifdef _MSC_VER
@@ -811,6 +811,9 @@ struct alignas(32) BitBoard {
 	inline BitBoard& Expand() {  // 上下左右に広がる
 		return *this |= Down() |= Right() |= Up() |= Left();
 	}
+	inline int PopCount() {
+		return ::Popcount(((U*)&data)->ulls[0]) + ::Popcount(((U*)&data)->ulls[1]) + ::Popcount(((U*)&data)->ulls[2]) + ::Popcount(((U*)&data)->ulls[3]);
+	}
 	void Print() const {
 		for (const auto& row : Rows()) {
 			rep(i, 16) cout << (row >> i & 1) << ",\n"[i == 15];
@@ -844,6 +847,9 @@ void TestBitBoard() {
 	cout << "up" << endl;
 	bb = bb.Up();
 	bb.Print();
+
+	cout << "popcount" << endl;
+	cout << bb.PopCount() << endl;
 
 	cout << "reset" << endl;
 	for (const auto& idx : bb.NonzeroIndices()) bb.Flip(idx);
@@ -1195,12 +1201,17 @@ struct State {
 			}
 		}
 
+		// subscore4
+		int subscore4 = (machines.Left() | machines.Right() | machines.Up() | machines.Down()).PopCount();
+
+
 		if (turn == T) {
 			score = money;
 		}
 		else {
 			score = money
 				+ (subscore2 * globals::exp_kt + subscore3) * n_machines
+				+ machine_worth * (0.5 * ((double)subscore4 / (double)n_machines - 1.0));
 				+ machine_worth;  // 3 乗和
 		}
 	}
@@ -1332,9 +1343,12 @@ struct State {
 			score = money;
 		}
 		else {
+			int subscore4 = (machines.Left() | machines.Right() | machines.Up() | machines.Down()).PopCount();
+			const auto machine_worth = (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef;
 			score = money
 				+ (subscore2 / globals::EXP_NEG_KT[turn] + subscore3) * n_machines * penalty
-				+ (int)((n_machines * (n_machines + 1)) / 2) * (int)((n_machines * (n_machines + 1)) / 2) * globals::machine_worth_coef;  // 3 乗和
+				+ machine_worth * (0.5 * ((double)subscore4 / (double)n_machines - 1.0));
+				+ machine_worth;  // 3 乗和
 		}
 	}
 	template<class Vector>
@@ -1410,17 +1424,14 @@ struct State {
 				const auto u = machines.Up();
 				const auto d = machines.Down();
 				const auto dd = d.Down();
-				const auto ddd = dd.Down();
 				const auto dl = d.Left();
-				const auto dll = dl.Left();
 				const auto ddl = dd.Left();
-				const auto ddr = dd.Right();
+				const auto dll = dl.Left();
 				const auto dr = d.Right();
+				const auto ddr = dd.Right();
 				const auto drr = dr.Right();
 				const auto ur = u.Right();
-				const auto urr = ur.Right();
 				const auto rr = r.Right();
-				const auto rrr = rr.Right();
 				{
 					using namespace board_index_functions;
 					const auto cond_center = d & ~u;
@@ -1454,15 +1465,10 @@ struct State {
 				// 特殊ケース 2: [ -> ]
 				{
 					using namespace board_index_functions;
-					const auto cond_ud  = l & r & dl & dr             & ~u & ~dd;
-					const auto cond_ud2 = l & r & dl & dr & ddl & ddr & ~u & ~ddd;
+					const auto cond_ud = l & r & dl & dr & ~u & ~dd;
 					// 上から下
 					for (const auto& p_add : (cond_ud & ~machines & d).NonzeroIndices()) {
 						const auto p_remove = UpOf(p_add);
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
-					for (const auto& p_add : (cond_ud2 & ~machines & dd).NonzeroIndices()) {
-						const auto p_remove = UpOf(UpOf(p_add));
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 					// 下から上
@@ -1470,29 +1476,15 @@ struct State {
 						const auto p_add = UpOf(p_remove);
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
-					for (const auto& p_remove : (cond_ud2 & machines & ~dd).NonzeroIndices()) {
-						const auto p_add = UpOf(UpOf(p_remove));
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
-
-					const auto cond_lr  = u & d & ur & dr             & ~l & ~rr;
-					const auto cond_lr2 = u & d & ur & dr & urr & drr & ~l & ~rrr;
+					const auto cond_lr = u & d & ur & dr & ~l & ~rr;
 					// 左から右
 					for (const auto& p_add : (cond_lr & ~machines & r).NonzeroIndices()) {
 						const auto p_remove = LeftOf(p_add);
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
-					for (const auto& p_add : (cond_lr2 & ~machines & rr).NonzeroIndices()) {
-						const auto p_remove = LeftOf(LeftOf(p_add));
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
 					// 右から左
 					for (const auto& p_remove : (cond_lr & machines & ~r).NonzeroIndices()) {
 						const auto p_add = LeftOf(p_remove);
-						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
-					}
-					for (const auto& p_remove : (cond_lr2 & machines & ~rr).NonzeroIndices()) {
-						const auto p_add = LeftOf(LeftOf(p_remove));
 						ASSERT(p_remove != p_add, "元と同じ箇所は選ばれないはずだよ");  auto new_state = *this;  new_state.Do(Action{ p_remove, p_add });  res.push(NewStateInfo{ new_state.score, new_state.hash, {p_remove, p_add} });
 					}
 
